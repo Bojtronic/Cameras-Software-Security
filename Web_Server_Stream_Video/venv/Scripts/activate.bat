@@ -8,7 +8,7 @@ if defined _OLD_CODEPAGE (
     "%SystemRoot%\System32\chcp.com" 65001 > nul
 )
 
-set "VIRTUAL_ENV=C:\Users\Monitoreo\Desktop\Proyecto de camaras\Python\FastAPI-Web-Server-to-Stream-Video-from-Camera\venv"
+set "VIRTUAL_ENV=C:\Users\Monitoreo\Documents\Camaras IA\Cameras-Software-Security\Web_Server_Stream_Video\venv"
 
 if not defined PROMPT set PROMPT=$P$G
 

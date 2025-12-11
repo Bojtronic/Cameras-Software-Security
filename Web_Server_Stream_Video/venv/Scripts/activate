@@ -40,10 +40,10 @@ deactivate nondestructive
 if [ "${OSTYPE:-}" = "cygwin" ] || [ "${OSTYPE:-}" = "msys" ] ; then
     # transform D:\path\to\venv to /d/path/to/venv on MSYS
     # and to /cygdrive/d/path/to/venv on Cygwin
-    export VIRTUAL_ENV=$(cygpath 'C:\Users\Monitoreo\Desktop\Proyecto de camaras\Python\FastAPI-Web-Server-to-Stream-Video-from-Camera\venv')
+    export VIRTUAL_ENV=$(cygpath 'C:\Users\Monitoreo\Documents\Camaras IA\Cameras-Software-Security\Web_Server_Stream_Video\venv')
 else
     # use the path as-is
-    export VIRTUAL_ENV='C:\Users\Monitoreo\Desktop\Proyecto de camaras\Python\FastAPI-Web-Server-to-Stream-Video-from-Camera\venv'
+    export VIRTUAL_ENV='C:\Users\Monitoreo\Documents\Camaras IA\Cameras-Software-Security\Web_Server_Stream_Video\venv'
 fi
 
 _OLD_VIRTUAL_PATH="$PATH"
