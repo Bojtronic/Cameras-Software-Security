@@ -1,0 +1,37 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <title>Sistema de Monitoreo IA</title>
+    <link rel="icon" type="image/x-icon" href="/static/favicon.ico">
+    <link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+
+<div id="container">
+    <h1>Sistema de Monitoreo con IA</h1>
+
+    <div id="video-section">
+        <h2>Streaming</h2>
+        <img id="videoFeed" src="/video" alt="Cargando video...">
+    </div>
+
+    <div id="status-section">
+        <h2>Estado</h2>
+        <p><strong>Persona Real:</strong> <span id="personaReal">--</span></p>
+        <p><strong>Pose:</strong> <span id="poseName">--</span></p>
+        <p><strong>Visibilidad:</strong> <span id="visibilityCount">--</span></p>
+        <p><strong>Head Tilt:</strong> <span id="headTilt">--</span></p>
+    </div>
+
+    <div id="log-section">
+        <h2>Logs</h2>
+        <div id="logs"></div>
+    </div>
+
+</div>
+
+<script src="/static/app.js"></script>
+
+</body>
+</html>
