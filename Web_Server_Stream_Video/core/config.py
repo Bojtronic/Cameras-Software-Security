@@ -1,4 +1,5 @@
 #RTSP_URL = "rtsp://admin:TIss9831@192.168.18.14:554/"
+#RTSP_URL = "rtsp://admin:TIss9831@192.168.18.14:554/cam/realmonitor?channel=1&subtype=0"
 RTSP_URL = "rtsp://admin:TIss9831@192.168.18.14:554/cam/realmonitor?channel=1&subtype=1"
 
 

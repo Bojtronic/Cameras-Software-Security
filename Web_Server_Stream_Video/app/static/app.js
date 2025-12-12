@@ -16,17 +16,10 @@ function actualizarEstado() {
 
             document.getElementById("headTilt").innerText =
                 data.meta?.head_tilt ?? "--";
-
-            log("Estado actualizado");
         })
         .catch(e => log("Error obteniendo estado: " + e));
 }
 
-function log(text) {
-    const logs = document.getElementById("logs");
-    logs.innerHTML += "> " + text + "<br>";
-    logs.scrollTop = logs.scrollHeight;
-}
 
 // Actualizar cada 2 segundos
 setInterval(actualizarEstado, 2000);
