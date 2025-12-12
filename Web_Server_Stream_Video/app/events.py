@@ -78,7 +78,7 @@ async def lifespan(app):
                 except Exception:
                     pass
             else:
-                cv2.putText(frame_to_stream, "SIN PERSONA REAL",
+                cv2.putText(frame_to_stream, "NO HAY PERSONA",
                             (20, 50), cv2.FONT_HERSHEY_SIMPLEX, 1.0, (200, 200, 200), 2)
 
             with state.frame_lock:
@@ -95,7 +95,7 @@ async def lifespan(app):
                 }
                 state.latest_result_ts = state.latest_result["timestamp"]
 
-            time.sleep(0.01)
+            time.sleep(0.005)
 
     th = threading.Thread(target=capture_and_process, daemon=True)
     th.start()
@@ -108,3 +108,5 @@ async def lifespan(app):
         time.sleep(0.2)
         cam.liberar()
         
+
+

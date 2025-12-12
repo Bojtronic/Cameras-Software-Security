@@ -7,6 +7,8 @@ class Camara:
         self.cap = cv2.VideoCapture(fuente)
         try:
             self.cap.set(cv2.CAP_PROP_BUFFERSIZE, buffer_size)
+            self.cap.set(cv2.CAP_PROP_FPS, 30)                   # Depende de la cámara
+            self.cap.set(cv2.CAP_PROP_POS_FRAMES, 0)             # Evita acumulación en algunos drivers
         except Exception:
             pass
         self.lock = threading.Lock()

@@ -41,7 +41,7 @@ exe = EXE(
     a.binaries,
     a.datas,
     [],
-    name='run_ui',
+    name='Monitoreo_IA',
     debug=False,
     bootloader_ignore_signals=False,
     strip=False,
