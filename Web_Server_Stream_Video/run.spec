@@ -10,11 +10,19 @@ hiddenimports += collect_submodules("uvicorn")
 hiddenimports += collect_submodules("pydantic")
 hiddenimports += collect_submodules("mediapipe")
 
+hiddenimports += collect_submodules("onvif")
+hiddenimports += collect_submodules("zeep")
+hiddenimports += collect_submodules("zeep.transports")
+hiddenimports += collect_submodules("zeep.wsse")
+hiddenimports += collect_submodules("zeep.xsd")
+
 datas = [
     (os.path.join(project_dir, "app"), "app"),
     (os.path.join(project_dir, "core"), "core"),
     (os.path.join(project_dir, "services"), "services"),
     (os.path.join(project_dir, "detectors"), "detectors"),
+
+    (os.path.join(project_dir, "services", "wsdl"), "services/wsdl"),
 ]
 
 datas += collect_data_files("mediapipe")

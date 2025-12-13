@@ -19,6 +19,7 @@ class CameraProbeRequest(BaseModel):
     password: str
 
 
+
 class RTSPRequest(BaseModel):
     rtsp: str
 
@@ -29,17 +30,13 @@ class RTSPRequest(BaseModel):
 
 @router.post("/onvif-probe")
 def onvif_probe(data: CameraProbeRequest):
-    """
-    Obtiene RTSPs disponibles vía ONVIF usando IP directa.
-    """
-    try:        
+    try:
         streams = get_rtsp_urls(
             ip=data.ip,
             port=data.port,
             user=data.user,
             password=data.password
         )
-
 
         return {
             "success": True,

@@ -1,13 +1,21 @@
 from onvif import ONVIFCamera
 import logging
 import os
+import sys
 
 
-# Ruta ABSOLUTA al directorio wsdl
-WSDL_DIR = os.path.join(
-    os.path.dirname(__file__),
-    "wsdl"
-)
+# -------------------------------------------------
+# Resolver ruta WSDL (dev + exe)
+# -------------------------------------------------
+if getattr(sys, "frozen", False):
+    # Ejecutable PyInstaller
+    BASE_DIR = sys._MEIPASS
+else:
+    # Desarrollo normal
+    BASE_DIR = os.path.dirname(__file__)
+
+WSDL_DIR = os.path.join(BASE_DIR, "services", "wsdl")
+
 
 
 def get_rtsp_urls(ip: str, user: str, password: str, port: int = 80):

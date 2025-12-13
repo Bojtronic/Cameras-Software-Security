@@ -1,7 +1,11 @@
 let discoveredDevices = [];
 let discoveredStreams = [];
 
-
+const ipEl = () => document.getElementById("ip");
+const userEl = () => document.getElementById("user");
+const passEl = () => document.getElementById("password");
+const portEl = () => document.getElementById("port");
+const rtspEl = () => document.getElementById("rtsp");
 
 
 
@@ -11,16 +15,16 @@ async function probeOnvif() {
     const ip = ipEl().value;
     const user = userEl().value;
     const password = passEl().value;
-
-    const port = document.getElementById("port").value || 80;
+    const port = parseInt(portEl().value || "80");
 
     const res = await fetch("/camera/onvif-probe", {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ ip, port, user, password })
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ ip, port, user, password })
     });
 
     const data = await res.json();
+
     const list = document.getElementById("rtspList");
     list.innerHTML = `<option value="">-- Seleccione un stream --</option>`;
 
@@ -28,19 +32,26 @@ async function probeOnvif() {
         data.streams.forEach(s => {
             const opt = document.createElement("option");
             opt.value = s.rtsp;
-            opt.text = s.profile || s.rtsp;
+            opt.text = `${s.profile || "Perfil"} - ${s.rtsp}`;
             list.appendChild(opt);
         });
         setStatus("Streams encontrados", "ok");
     } else {
-        setStatus("No se encontraron streams", "error");
+        setStatus(data.error || "No se encontraron streams", "error");
     }
 }
 
+
 function selectFromList() {
-    const val = document.getElementById("rtspList").value;
-    if (val) document.getElementById("rtsp").value = val;
+    const list = document.getElementById("rtspList");
+    const rtspInput = document.getElementById("rtsp");
+
+    if (list.value) {
+        rtspInput.value = list.value;
+        setStatus("RTSP seleccionado", "ok");
+    }
 }
+
 
 
 async function testCamera() {
@@ -90,10 +101,6 @@ function setStatus(msg, type = "idle") {
     el.className = `status ${type}`;
 }
 
-const ipEl = () => document.getElementById("ip");
-const userEl = () => document.getElementById("user");
-const passEl = () => document.getElementById("password");
-const rtspEl = () => document.getElementById("rtsp");
 
 
 function setStatus(msg) {
