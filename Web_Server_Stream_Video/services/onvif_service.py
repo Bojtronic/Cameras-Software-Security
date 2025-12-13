@@ -14,7 +14,7 @@ else:
     # Desarrollo normal
     BASE_DIR = os.path.dirname(__file__)
 
-WSDL_DIR = os.path.join(BASE_DIR, "services", "wsdl")
+WSDL_DIR = os.path.join(BASE_DIR, "wsdl")
 
 
 

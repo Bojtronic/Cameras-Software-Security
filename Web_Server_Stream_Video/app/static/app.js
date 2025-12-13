@@ -46,11 +46,26 @@ function selectFromList() {
     const list = document.getElementById("rtspList");
     const rtspInput = document.getElementById("rtsp");
 
-    if (list.value) {
-        rtspInput.value = list.value;
-        setStatus("RTSP seleccionado", "ok");
+    const user = userEl().value.trim();
+    const password = passEl().value.trim();
+
+    if (!list.value) return;
+
+    let rtsp = list.value;
+
+    // Insertar credenciales si NO existen
+    if (!rtsp.includes("@") && user && password) {
+        rtsp = rtsp.replace(
+            /^rtsp:\/\//i,
+            `rtsp://${encodeURIComponent(user)}:${encodeURIComponent(password)}@`
+        );
     }
+
+    rtspInput.value = rtsp;
+    setStatus("RTSP seleccionado", "ok");
 }
+
+
 
 
 

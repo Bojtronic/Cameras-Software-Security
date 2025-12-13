@@ -22,7 +22,7 @@ datas = [
     (os.path.join(project_dir, "services"), "services"),
     (os.path.join(project_dir, "detectors"), "detectors"),
 
-    (os.path.join(project_dir, "services", "wsdl"), "services/wsdl"),
+    (os.path.join(project_dir, "services", "wsdl"), "wsdl"),
 ]
 
 datas += collect_data_files("mediapipe")
