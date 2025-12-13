@@ -30,3 +30,21 @@ async def generar_frames():
 @router.get('/video')
 async def video():
     return StreamingResponse(generar_frames(), media_type='multipart/x-mixed-replace; boundary=frame')
+
+
+@router.post("/select")
+def select_camera(rtsp_url: str):
+    """
+    Cambia la cámara activa en tiempo real
+    """
+    state.active_rtsp_url = rtsp_url
+
+    if state.camera_change_event:
+        state.camera_change_event.set()
+
+    return {
+        "status": "ok",
+        "active_rtsp": rtsp_url
+    }
+
+

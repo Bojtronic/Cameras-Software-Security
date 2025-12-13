@@ -4,7 +4,7 @@ from fastapi.templating import Jinja2Templates
 import os, sys
 
 from app.events import lifespan
-from app.routers import video_router, persona_router, pose_router
+from app.routers import video_router, persona_router, pose_router, camera_router
 from core import config
 
 def get_base_path():
@@ -29,6 +29,8 @@ app = FastAPI(lifespan=lifespan)
 app.include_router(video_router.router)
 app.include_router(persona_router.router)
 app.include_router(pose_router.router)
+
+app.include_router(camera_router.router)
 
 app.mount("/static", StaticFiles(directory=STATIC_DIR), name="static")
 templates = Jinja2Templates(directory=TEMPLATE_DIR)

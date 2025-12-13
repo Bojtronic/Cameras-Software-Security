@@ -15,6 +15,8 @@ HOMBROS_MAX_PX = 1000
 FRAMES_ON = 5
 FRAMES_OFF = 5
 
+ENABLE_ONVIF = False
+
 POSE_COLORS = {
     "de_pie": (0, 255, 0),
     "sentado": (0, 200, 255),

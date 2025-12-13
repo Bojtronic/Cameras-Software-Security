@@ -30,3 +30,66 @@ h1 {
     border-radius: 8px;
     border: 1px solid #ccc;
 }
+
+.camera-box {
+    background: white;
+    padding: 20px;
+    border-radius: 8px;
+    margin-top: 20px;
+}
+
+.camera-box label {
+    font-weight: bold;
+    display: block;
+    margin-top: 10px;
+}
+
+.camera-box input,
+.camera-box select {
+    width: 100%;
+    padding: 8px;
+    margin-top: 4px;
+}
+
+.button-row {
+    display: flex;
+    gap: 10px;
+    margin-top: 15px;
+}
+
+button {
+    padding: 10px;
+    cursor: pointer;
+}
+
+button.primary {
+    background: #2d8cff;
+    color: white;
+    border: none;
+}
+
+.status {
+    margin-top: 15px;
+    padding: 10px;
+    border-radius: 6px;
+    font-weight: bold;
+}
+
+.status.ok {
+    background: #e0f7e9;
+    color: #1b7f3a;
+}
+
+.status.error {
+    background: #fdecea;
+    color: #a12722;
+}
+
+.status.loading {
+    background: #fff4cc;
+    color: #8a6d00;
+}
+
+.status.idle {
+    background: #eee;
+}

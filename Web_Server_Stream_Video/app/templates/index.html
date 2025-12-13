@@ -1,31 +1,74 @@
 <!DOCTYPE html>
 <html lang="es">
+
 <head>
     <meta charset="UTF-8">
     <title>Sistema de Monitoreo IA</title>
     <link rel="icon" type="image/x-icon" href="/static/favicon.ico">
     <link rel="stylesheet" href="/static/style.css">
 </head>
+
 <body>
 
-<div id="container">
-    <h1>Sistema de Monitoreo con IA</h1>
+    <div id="container">
+        <h1>Sistema de Monitoreo con IA</h1>
 
-    <div id="video-section">
-        <h2>Streaming</h2>
-        <img id="videoFeed" src="/video" alt="Cargando video...">
+        <div id="camera-section">
+            <h2>Cámara activa</h2>
+            <p id="currentCamera">--</p>
+        </div>
+
+        <div class="camera-box">
+            <h3>Agregar / Seleccionar cámara</h3>
+
+            <label>IP</label>
+            <input id="ip" placeholder="192.168.1.100" />
+
+            <label>Puerto ONVIF</label>
+            <input id="port" placeholder="80" value="80" />
+
+            <label>Usuario</label>
+            <input id="user" placeholder="admin" />
+
+            <label>Password</label>
+            <input id="password" type="password" />
+
+            <button onclick="probeOnvif()">🔍 Obtener RTSP (ONVIF)</button>
+
+            <label>Streams RTSP</label>
+            <select id="rtspList" onchange="selectFromList()">
+                <option value="">-- Seleccione un stream --</option>
+            </select>
+
+            <label>RTSP seleccionado</label>
+            <input id="rtsp" placeholder="rtsp://..." />
+
+            <div class="button-row">
+                <button onclick="testCamera()">🧪 Probar</button>
+                <button class="primary" onclick="selectCamera()">▶ Activar</button>
+            </div>
+
+            <div id="camera-status" class="status idle">Esperando acción</div>
+        </div>
+
+
+        <div id="video-section">
+            <h2>Streaming</h2>
+            <img id="videoFeed" src="/video" alt="Cargando video...">
+        </div>
+
+        <div id="status-section">
+            <h2>Estado</h2>
+            <p><strong>Persona Real:</strong> <span id="personaReal">--</span></p>
+            <p><strong>Pose:</strong> <span id="poseName">--</span></p>
+            <p><strong>Visibilidad:</strong> <span id="visibilityCount">--</span></p>
+            <p><strong>Head Tilt:</strong> <span id="headTilt">--</span></p>
+        </div>
     </div>
 
-    <div id="status-section">
-        <h2>Estado</h2>
-        <p><strong>Persona Real:</strong> <span id="personaReal">--</span></p>
-        <p><strong>Pose:</strong> <span id="poseName">--</span></p>
-        <p><strong>Visibilidad:</strong> <span id="visibilityCount">--</span></p>
-        <p><strong>Head Tilt:</strong> <span id="headTilt">--</span></p>
-    </div>
-</div>
 
-<script src="/static/app.js"></script>
+    <script src="/static/app.js"></script>
 
 </body>
+
 </html>

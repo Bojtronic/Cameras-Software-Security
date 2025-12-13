@@ -1,3 +1,106 @@
+let discoveredDevices = [];
+let discoveredStreams = [];
+
+
+
+
+
+async function probeOnvif() {
+    setStatus("Buscando streams ONVIF...", "loading");
+
+    const ip = ipEl().value;
+    const user = userEl().value;
+    const password = passEl().value;
+
+    const port = document.getElementById("port").value || 80;
+
+    const res = await fetch("/camera/onvif-probe", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ ip, port, user, password })
+    });
+
+    const data = await res.json();
+    const list = document.getElementById("rtspList");
+    list.innerHTML = `<option value="">-- Seleccione un stream --</option>`;
+
+    if (data.success && data.streams.length > 0) {
+        data.streams.forEach(s => {
+            const opt = document.createElement("option");
+            opt.value = s.rtsp;
+            opt.text = s.profile || s.rtsp;
+            list.appendChild(opt);
+        });
+        setStatus("Streams encontrados", "ok");
+    } else {
+        setStatus("No se encontraron streams", "error");
+    }
+}
+
+function selectFromList() {
+    const val = document.getElementById("rtspList").value;
+    if (val) document.getElementById("rtsp").value = val;
+}
+
+
+async function testCamera() {
+    const rtsp = rtspEl().value;
+    setStatus("Probando cámara...", "loading");
+
+    const res = await fetch("/camera/test", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ rtsp })
+    });
+
+    const data = await res.json();
+    setStatus(
+        data.success ? "Cámara responde correctamente" : "Error al conectar",
+        data.success ? "ok" : "error"
+    );
+}
+
+
+async function selectCamera() {
+    const rtsp = rtspEl().value;
+
+    const res = await fetch("/camera/select", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ rtsp })
+    });
+
+    const data = await res.json();
+
+    if (data.success) {
+        setStatus("Cámara activada", "ok");
+        cargarCamaraActual();
+        refrescarVideo();
+    }
+}
+
+function refrescarVideo() {
+    const img = document.getElementById("videoFeed");
+    img.src = "/video?t=" + Date.now();
+}
+
+function setStatus(msg, type = "idle") {
+    const el = document.getElementById("camera-status");
+    el.innerText = msg;
+    el.className = `status ${type}`;
+}
+
+const ipEl = () => document.getElementById("ip");
+const userEl = () => document.getElementById("user");
+const passEl = () => document.getElementById("password");
+const rtspEl = () => document.getElementById("rtsp");
+
+
+function setStatus(msg) {
+  document.getElementById("camera-status").innerText = msg;
+}
+
+
 function actualizarEstado() {
     fetch("/persona")
         .then(r => {
@@ -20,6 +123,17 @@ function actualizarEstado() {
         .catch(e => log("Error obteniendo estado: " + e));
 }
 
+function cargarCamaraActual() {
+    fetch("/camera/current")
+        .then(r => r.json())
+        .then(data => {
+            document.getElementById("currentCamera").innerText =
+                data.rtsp || "No definida";
+        })
+        .catch(e => console.error(e));
+}
+
+cargarCamaraActual();
 
 // Actualizar cada 2 segundos
 setInterval(actualizarEstado, 2000);

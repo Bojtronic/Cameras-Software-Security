@@ -8,6 +8,13 @@ current_frame = None
 latest_result = None
 latest_result_ts = 0.0
 
+
+active_rtsp_url = None
+camera_change_event = None
+cam = None
+cam_lock = threading.Lock()
+
+
 # Instancias inicializadas en app/events.py
 camara = None
 detector = None
@@ -21,3 +28,7 @@ def set_dependencies(cam, det, presence, run_event):
     detector = det
     presence_controller = presence
     running_event = run_event
+
+def set_active_camera(rtsp_url):
+    global active_rtsp_url
+    active_rtsp_url = rtsp_url

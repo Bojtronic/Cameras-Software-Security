@@ -3,3 +3,7 @@ uvicorn
 opencv-python
 mediapipe
 numpy
+
+onvif-zeep
+zeep
+lxml
