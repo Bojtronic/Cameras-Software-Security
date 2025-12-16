@@ -10,94 +10,93 @@
 
 <body>
 
-    <div id="container">
-        <h1>Sistema de Monitoreo con IA</h1>
+    <div id="layout">
 
-        <div id="camera-section">
-            <h2>Cámara activa</h2>
-            <p id="currentCamera">--</p>
-        </div>
+        <!-- SIDEBAR -->
+        <aside id="sidebar" class="sidebar">
+            <div class="camera-box">
 
-        <div class="camera-box">
-            <h3>Agregar / Seleccionar cámara</h3>
+                <br>
+                <br>
 
-            <label>IP</label>
-            <input id="ip" placeholder="192.168.1.100" />
+                <button class="btn secondary full" onclick="scanNetwork()">
+                    🔍 Buscar cámaras en red
+                </button>
 
-            <label>Puerto ONVIF</label>
-            <input id="port" placeholder="80" value="80" />
+                <div class="form-group">
+                    <label for="networkCameraList">Cámaras detectadas en la red</label>
+                    <select id="networkCameraList" onchange="selectNetworkCamera()">
+                        <option value="">-- Escanee la red --</option>
+                    </select>
+                </div>
 
-            <label>Usuario</label>
-            <input id="user" placeholder="admin" />
+                <label>IP</label>
+                <input id="ip" placeholder="0.0.0.0" />
 
-            <label>Password</label>
-            <input id="password" type="password" />
+                <label>Puerto ONVIF</label>
+                <input id="port" placeholder="80" />
 
-            <button onclick="probeOnvif()">🔍 Obtener RTSP (ONVIF)</button>
+                <label>Usuario</label>
+                <input id="user" placeholder="UserName" />
 
+                <label>Password</label>
+                <input id="password" type="password" />
 
+                <br>
+                <br>
 
-            <label>Streams RTSP</label>
-            <select id="rtspList" onchange="selectFromList()">
-                <option value="">-- Seleccione un stream --</option>
-            </select>
+                <button class="btn secondary full" onclick="probeOnvif()">
+                    🔍 Obtener RTSP (ONVIF)
+                </button>
 
-            <label>RTSP seleccionado</label>
-            <input id="rtsp" placeholder="rtsp://..." />
+                <label>Streams RTSP</label>
+                <select id="rtspList" onchange="selectFromList()">
+                    <option value="">-- Seleccione un stream --</option>
+                </select>
 
+                <label>RTSP seleccionado</label>
+                <input id="rtsp" placeholder="rtsp://..." />
 
-            <div class="button-row">
-                <button onclick="testCamera()">🧪 Probar</button>
-                <button class="primary" onclick="selectCamera()">▶ Activar</button>
+                <div class="button-row">
+                    <button class="btn secondary" onclick="testCamera()">🧪 Probar</button>
+                    <button class="btn primary" onclick="selectCamera()">▶ Activar</button>
+                </div>
+
+                <div id="camera-status" class="status idle">
+                    Esperando acción
+                </div>
             </div>
 
-            <div id="camera-status" class="status idle">Esperando acción</div>
-        </div>
+        </aside>
 
-        <button onclick="scanNetwork()">🔍 Buscar cámaras en red</button>
+        <!-- MAIN CONTENT -->
+        <main id="mainContent">
 
-        <hr>
+            <!-- Toggle sidebar -->
+            <button id="toggleSidebar" onclick="toggleSidebar()">☰</button>
 
-        <h3>📡 Cámaras detectadas en la red</h3>
+            <header id="topbar">
+                <h1>Sistema de Monitoreo con IA</h1>
+                <p class="active-camera">
+                    Cámara activa: <span id="currentCamera">--</span>
+                </p>
+            </header>
 
-        <label>Cámaras encontradas</label>
-        <select id="networkCameraList" onchange="selectNetworkCamera()">
-            <option value="">-- Seleccione una cámara --</option>
-        </select>
+            <section id="video-section">
+                <img id="videoFeed" src="/video" alt="Cargando video...">
+            </section>
 
-        <label>IP detectada</label>
-        <input id="net_ip" placeholder="IP de la cámara" readonly />
+            <section id="status-section">
+                <h2>Estado</h2>
+                <p><strong>Persona Real:</strong> <span id="personaReal">--</span></p>
+                <p><strong>Pose:</strong> <span id="poseName">--</span></p>
+                <p><strong>Visibilidad:</strong> <span id="visibilityCount">--</span></p>
+                <p><strong>Head Tilt:</strong> <span id="headTilt">--</span></p>
+            </section>
 
-        <label>Puerto ONVIF sugerido</label>
-        <input id="net_port" placeholder="80" value="80" />
+        </main>
 
-        <label>Usuario</label>
-        <input id="net_user" placeholder="admin" />
-
-        <label>Password</label>
-        <input id="net_password" type="password" />
-
-        <button onclick="probeOnvifFromNetwork()">🔍 Obtener streams ONVIF</button>
-
-        <label>Streams ONVIF detectados</label>
-        <select id="networkRtspList" onchange="selectNetworkStream()">
-            <option value="">-- Seleccione un stream --</option>
-        </select>
-
-        <div id="video-section">
-            <h2>Streaming</h2>
-            <img id="videoFeed" src="/video" alt="Cargando video...">
-        </div>
-
-        <div id="status-section">
-            <h2>Estado</h2>
-            <p><strong>Persona Real:</strong> <span id="personaReal">--</span></p>
-            <p><strong>Pose:</strong> <span id="poseName">--</span></p>
-            <p><strong>Visibilidad:</strong> <span id="visibilityCount">--</span></p>
-            <p><strong>Head Tilt:</strong> <span id="headTilt">--</span></p>
-        </div>
     </div>
-
 
     <script src="/static/app.js"></script>
 
