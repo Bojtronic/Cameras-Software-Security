@@ -35,6 +35,8 @@
 
             <button onclick="probeOnvif()">🔍 Obtener RTSP (ONVIF)</button>
 
+
+
             <label>Streams RTSP</label>
             <select id="rtspList" onchange="selectFromList()">
                 <option value="">-- Seleccione un stream --</option>
@@ -42,7 +44,7 @@
 
             <label>RTSP seleccionado</label>
             <input id="rtsp" placeholder="rtsp://..." />
-            
+
 
             <div class="button-row">
                 <button onclick="testCamera()">🧪 Probar</button>
@@ -52,6 +54,35 @@
             <div id="camera-status" class="status idle">Esperando acción</div>
         </div>
 
+        <button onclick="scanNetwork()">🔍 Buscar cámaras en red</button>
+
+        <hr>
+
+        <h3>📡 Cámaras detectadas en la red</h3>
+
+        <label>Cámaras encontradas</label>
+        <select id="networkCameraList" onchange="selectNetworkCamera()">
+            <option value="">-- Seleccione una cámara --</option>
+        </select>
+
+        <label>IP detectada</label>
+        <input id="net_ip" placeholder="IP de la cámara" readonly />
+
+        <label>Puerto ONVIF sugerido</label>
+        <input id="net_port" placeholder="80" value="80" />
+
+        <label>Usuario</label>
+        <input id="net_user" placeholder="admin" />
+
+        <label>Password</label>
+        <input id="net_password" type="password" />
+
+        <button onclick="probeOnvifFromNetwork()">🔍 Obtener streams ONVIF</button>
+
+        <label>Streams ONVIF detectados</label>
+        <select id="networkRtspList" onchange="selectNetworkStream()">
+            <option value="">-- Seleccione un stream --</option>
+        </select>
 
         <div id="video-section">
             <h2>Streaming</h2>

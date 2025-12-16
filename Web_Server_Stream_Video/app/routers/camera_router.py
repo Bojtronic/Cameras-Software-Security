@@ -4,6 +4,9 @@ from pydantic import BaseModel
 from services.onvif_service import get_rtsp_urls
 from services.video_service import test_rtsp_connection
 from services import state
+from services.network_scan_service import scan_network, get_local_subnet
+from app.models.network_scan import NetworkScanRequest
+
 
 router = APIRouter(prefix="/camera", tags=["camera"])
 
@@ -103,3 +106,16 @@ def get_current_camera():
     return {
         "rtsp": state.active_rtsp_url
     }
+
+
+@router.post("/network-scan")
+def network_scan():
+    subnet = get_local_subnet()
+    cameras = scan_network(subnet)
+    return {
+        "success": True,
+        "devices": cameras,
+        "subnet": subnet
+    }
+    
+    
