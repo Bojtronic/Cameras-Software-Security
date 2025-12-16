@@ -201,8 +201,8 @@ function selectNetworkCamera() {
     // ✅ Puerto sugerido
     const selectedPort =
         ports.includes(80) ? 80 :
-        ports.includes(554) ? 554 :
-        ports[0] || 80;
+            ports.includes(554) ? 554 :
+                ports[0] || 80;
 
     // ✅ Asignar a los campos existentes
     document.getElementById("ip").value = selectedIp;
@@ -300,6 +300,32 @@ function cargarCamaraActual() {
                 data.rtsp || "No definida";
         })
         .catch(e => console.error(e));
+}
+
+
+function enviarAlerta() {
+    const emailDestino = "duendenener@gmail.com";
+    const whatsappNumero = "50684926004";
+
+    const mensaje = `
+    ALERTA DEL SISTEMA DE MONITOREO IA
+    Evento detectado
+    Fecha: ${new Date().toLocaleString()}
+    `.trim();
+
+    const mailtoLink =
+        `mailto:${emailDestino}?subject=${encodeURIComponent("Alerta IA")}&body=${encodeURIComponent(mensaje)}`;
+
+    const whatsappLink =
+        `https://wa.me/${whatsappNumero}?text=${encodeURIComponent(mensaje)}`;
+
+    // Acción directa (menos advertencias)
+    window.open(whatsappLink, "_blank");
+
+    // Ligera demora para el correo
+    setTimeout(() => {
+        window.location.href = mailtoLink;
+    }, 500);
 }
 
 
