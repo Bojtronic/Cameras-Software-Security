@@ -303,29 +303,8 @@ function cargarCamaraActual() {
 }
 
 
-function enviarAlerta() {
-    const emailDestino = "duendenener@gmail.com";
-    const whatsappNumero = "50684926004";
-
-    const mensaje = `
-    ALERTA DEL SISTEMA DE MONITOREO IA
-    Evento detectado
-    Fecha: ${new Date().toLocaleString()}
-    `.trim();
-
-    const mailtoLink =
-        `mailto:${emailDestino}?subject=${encodeURIComponent("Alerta IA")}&body=${encodeURIComponent(mensaje)}`;
-
-    const whatsappLink =
-        `https://wa.me/${whatsappNumero}?text=${encodeURIComponent(mensaje)}`;
-
-    // Acción directa (menos advertencias)
-    window.open(whatsappLink, "_blank");
-
-    // Ligera demora para el correo
-    setTimeout(() => {
-        window.location.href = mailtoLink;
-    }, 500);
+async function enviarAlerta() {
+    await fetch("/alerts/send", { method: "POST" });
 }
 
 

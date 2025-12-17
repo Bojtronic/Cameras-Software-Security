@@ -1,9 +1,18 @@
+# Backend API
 fastapi
 uvicorn
+
+# Streaming y visión por computadora
 opencv-python
 mediapipe
 numpy
 
+# ONVIF
 onvif-zeep
 zeep
 lxml
+
+# HTTP y utilidades
+requests
+python-dotenv
+
