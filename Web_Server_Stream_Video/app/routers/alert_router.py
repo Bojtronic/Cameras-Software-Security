@@ -1,13 +1,31 @@
 from fastapi import APIRouter
-from services.alert_service import send_email_alert, send_whatsapp_alert
+from services.alert_service import send_email_alert_1, send_whatsapp_alert_1, send_email_alert_2, send_whatsapp_alert_2
 
 router = APIRouter(prefix="/alerts", tags=["Alerts"])
 
-@router.post("/sendWhatsApp")
-def send_alert_whatsapp():
+@router.post("/sendWhatsApp1")
+def send_alert_whatsapp_1():
     try:
-        send_whatsapp_alert()
-        return {"success": True}
+        result = send_whatsapp_alert_1()
+        return {
+            "success": True,
+            "provider": "whatsapp-cloud",
+            "response": result
+        }
+    except Exception as e:
+        return {
+            "success": False,
+            "error": str(e)
+        }
+
+@router.get("/sendWhatsApp2")
+def send_alert_whatsapp_2():
+    try:
+        result = send_whatsapp_alert_2()
+        return {
+            "success": True,
+            "url": result["url"]
+        }
     except Exception as e:
         return {
             "success": False,
@@ -15,11 +33,28 @@ def send_alert_whatsapp():
         }
 
 
-@router.post("/sendEmail")
-def send_alert_email():
+@router.post("/sendEmail1")
+def send_alert_email_1():
     try:
-        send_email_alert()
-        return {"success": True}
+        send_email_alert_1()
+        return {
+            "success": True,
+            "provider": "smtp-gmail"
+        }
+    except Exception as e:
+        return {
+            "success": False,
+            "error": str(e)
+        }
+
+@router.get("/sendEmail2")
+def send_alert_email_2():
+    try:
+        result = send_email_alert_2()
+        return {
+            "success": True,
+            "url": result["url"]
+        }
     except Exception as e:
         return {
             "success": False,

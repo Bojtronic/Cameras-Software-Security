@@ -303,56 +303,34 @@ function cargarCamaraActual() {
 }
 
 
-async function enviarAlertaWhatsApp_frontend() {
-    const whatsappNumero = "50684926004";
-
-    const mensaje = `
-    ALERTA DEL SISTEMA DE MONITOREO IA
-    Evento detectado
-    Fecha: ${new Date().toLocaleString()}
-    `.trim();
-
-    const whatsappWebLink =
-        `https://web.whatsapp.com/send?phone=${whatsappNumero}&text=${encodeURIComponent(mensaje)}`;
-
-    window.open(whatsappWebLink, "_blank", "noopener,noreferrer");
-
-
-    console.log("alerta Whatsapp enviada (frontend)");
+async function enviarAlertaWhatsApp_1() {
+    await fetch("/alerts/sendWhatsApp1", { method: "POST" });
+    console.log("alerta Whatsapp enviada 1");
 }
 
-async function enviarAlertaCorreo_frontend() {
-    const emailDestino = "duendenener@gmail.com";
-
-    const mensaje = `
-ALERTA DEL SISTEMA DE MONITOREO IA
-Evento detectado
-Fecha: ${new Date().toLocaleString()}
-`.trim();
-
-    const subject = "🚨 Alerta del Sistema IA";
-
-    const gmailLink =
-        `https://mail.google.com/mail/?view=cm&fs=1` +
-        `&to=${encodeURIComponent(emailDestino)}` +
-        `&su=${encodeURIComponent(subject)}` +
-        `&body=${encodeURIComponent(mensaje)}`;
-
-    window.open(gmailLink, "_blank", "noopener,noreferrer");
-
-    console.log("Alerta correo frontend (Gmail Web)");
+async function enviarAlertaCorreo_1() {
+    await fetch("/alerts/sendEmail1", { method: "POST" });
+    console.log("alerta Correo enviada 1");
 }
 
 
 
-async function enviarAlertaWhatsApp_backend() {
-    await fetch("/alerts/sendWhatsApp", { method: "POST" });
-    console.log("alerta Whatsapp enviada (backend)");
+async function enviarAlertaWhatsApp_2() {
+    const res = await fetch("/alerts/sendWhatsApp2");
+    const data = await res.json();
+
+    window.open(data.url, "_blank", "noopener,noreferrer");
+
+    console.log("Alerta WhatsApp (link desde backend)");
 }
 
-async function enviarAlertaCorreo_backend() {
-    await fetch("/alerts/sendEmail", { method: "POST" });
-    console.log("alerta Correo enviada (backend)");
+async function enviarAlertaCorreo_2() {
+    const res = await fetch("/alerts/sendEmail2");
+    const data = await res.json();
+
+    window.open(data.url, "_blank", "noopener,noreferrer");
+
+    console.log("Alerta Correo (link desde backend)");
 }
 
 
