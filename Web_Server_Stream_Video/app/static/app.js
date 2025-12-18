@@ -305,6 +305,7 @@ function cargarCamaraActual() {
 
 async function enviarAlerta() {
     await fetch("/alerts/send", { method: "POST" });
+    console.log("alerta enviada");
 }
 
 

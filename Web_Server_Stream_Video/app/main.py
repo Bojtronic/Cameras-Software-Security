@@ -39,6 +39,14 @@ templates = Jinja2Templates(directory=TEMPLATE_DIR)
 def home(request: Request):
     return templates.TemplateResponse("index.html", {"request": request})
 
+@app.get("/health")
+def health_check():
+    return {"status": "ok"}
+
+@app.get("/splash")
+def splash(request: Request):
+    return templates.TemplateResponse("splash.html", {"request": request})
+
 if __name__ == "__main__":
     import uvicorn
     print(f"Servidor corriendo en http://{config.ADVERTISE_IP}:{config.PORT}")
