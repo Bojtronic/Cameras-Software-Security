@@ -303,9 +303,56 @@ function cargarCamaraActual() {
 }
 
 
-async function enviarAlerta() {
-    await fetch("/alerts/send", { method: "POST" });
-    console.log("alerta enviada");
+async function enviarAlertaWhatsApp_frontend() {
+    const whatsappNumero = "50684926004";
+
+    const mensaje = `
+    ALERTA DEL SISTEMA DE MONITOREO IA
+    Evento detectado
+    Fecha: ${new Date().toLocaleString()}
+    `.trim();
+
+    const whatsappWebLink =
+        `https://web.whatsapp.com/send?phone=${whatsappNumero}&text=${encodeURIComponent(mensaje)}`;
+
+    window.open(whatsappWebLink, "_blank", "noopener,noreferrer");
+
+
+    console.log("alerta Whatsapp enviada (frontend)");
+}
+
+async function enviarAlertaCorreo_frontend() {
+    const emailDestino = "duendenener@gmail.com";
+
+    const mensaje = `
+ALERTA DEL SISTEMA DE MONITOREO IA
+Evento detectado
+Fecha: ${new Date().toLocaleString()}
+`.trim();
+
+    const subject = "🚨 Alerta del Sistema IA";
+
+    const gmailLink =
+        `https://mail.google.com/mail/?view=cm&fs=1` +
+        `&to=${encodeURIComponent(emailDestino)}` +
+        `&su=${encodeURIComponent(subject)}` +
+        `&body=${encodeURIComponent(mensaje)}`;
+
+    window.open(gmailLink, "_blank", "noopener,noreferrer");
+
+    console.log("Alerta correo frontend (Gmail Web)");
+}
+
+
+
+async function enviarAlertaWhatsApp_backend() {
+    await fetch("/alerts/sendWhatsApp", { method: "POST" });
+    console.log("alerta Whatsapp enviada (backend)");
+}
+
+async function enviarAlertaCorreo_backend() {
+    await fetch("/alerts/sendEmail", { method: "POST" });
+    console.log("alerta Correo enviada (backend)");
 }
 
 
