@@ -53,8 +53,15 @@ async def lifespan(app):
     # Evento para cambio de cámara
     state.camera_change_event = threading.Event()
 
+    prev_pose = None
+    prev_pose_ts = None
+    confirmar_caida_frames = 0
+    CAIDA_CONFIRMADA = False
+
+
     # ===== Thread principal =====
     def capture_and_process():
+        nonlocal prev_pose, prev_pose_ts, confirmar_caida_frames, CAIDA_CONFIRMADA
         while running_event.is_set():
 
             # 🔁 Cambio de cámara solicitado
@@ -95,12 +102,44 @@ async def lifespan(app):
 
             if persona_real and result.get("landmarks") is not None:
                 lm = result["landmarks"]
-                pose_name = detector.clasificar_pose(
-                    lm,
-                    img_w=frame.shape[1],
-                    img_h=frame.shape[0]
-                )
+                
+                if result.get("visibility_count", 0) < config.MIN_LANDMARKS:
+                    pose_name = "desconocido"
+    
+                else:
+                    pose_name = detector.clasificar_pose(
+                        lm,
+                        img_w=frame.shape[1],
+                        img_h=frame.shape[0]
+                    )
 
+                now = time.time()
+                caida_detectada = False
+
+                if prev_pose is not None and prev_pose_ts is not None:
+                    transition_time = now - prev_pose_ts
+
+                    if (
+                        prev_pose in ("de_pie", "sentado")
+                        and pose_name == "acostado"
+                        and transition_time < 1.2
+                    ):
+                        caida_detectada = True
+
+                # Confirmación por frames
+                if caida_detectada:
+                    confirmar_caida_frames += 1
+                else:
+                    confirmar_caida_frames = 0
+
+                CAIDA_CONFIRMADA = confirmar_caida_frames >= 3
+
+                # Actualizar pose previa solo si es válida
+                if pose_name != "desconocido" and not CAIDA_CONFIRMADA:
+                    prev_pose = pose_name
+                    prev_pose_ts = now
+
+                # Visualización
                 draw_pose_on_frame(frame_to_stream, lm)
                 color = get_pose_color(pose_name)
 
@@ -113,7 +152,34 @@ async def lifespan(app):
                     color,
                     3
                 )
+
+                if CAIDA_CONFIRMADA:
+                    with state.caida_lock:
+                        if not state.caida_activa:
+                            state.caida_activa = True
+                            state.caida_ts = now
+
+                            cv2.putText(
+                                frame_to_stream,
+                                "!!! CAIDA DETECTADA !!!",
+                                (20, 100),
+                                cv2.FONT_HERSHEY_SIMPLEX,
+                                1.3,
+                                (0, 0, 255),
+                                4
+                            )
+
             else:
+                # Reset total cuando no hay persona real
+                with state.caida_lock:
+                    state.caida_activa = False
+                    state.caida_ts = None
+
+                prev_pose = None
+                prev_pose_ts = None
+                confirmar_caida_frames = 0
+                CAIDA_CONFIRMADA = False
+
                 cv2.putText(
                     frame_to_stream,
                     "NO HAY PERSONA",
@@ -132,11 +198,13 @@ async def lifespan(app):
                     "persona_real": persona_real,
                     "present": present,
                     "pose": pose_name,
+                    "caida": CAIDA_CONFIRMADA,
                     "visibility_count": result.get("visibility_count"),
                     "head_tilt": result.get("head_tilt"),
                     "shoulder_px": result.get("shoulder_px"),
                     "angle_torso_deg": result.get("angle_torso_deg")
                 }
+
                 state.latest_result_ts = state.latest_result["timestamp"]
 
             time.sleep(0.005)

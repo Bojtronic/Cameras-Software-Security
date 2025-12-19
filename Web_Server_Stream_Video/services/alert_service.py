@@ -12,8 +12,10 @@ load_dotenv()
 
 def send_email_alert_1():
     msg = EmailMessage()
-    msg["From"] = os.getenv("EMAIL_USER")
-    msg["To"] = os.getenv("EMAIL_TO")
+    #msg["From"] = os.getenv("EMAIL_USER")
+    #msg["To"] = os.getenv("EMAIL_TO")
+    msg["From"] = "sstestmail2026@gmail.com"
+    msg["To"] = "duendenener@gmail.com"
     msg["Subject"] = "🚨 Alerta del Sistema de Monitoreo IA"
 
     body = f"""
@@ -27,8 +29,10 @@ Fecha: {datetime.now().strftime("%Y-%m-%d %H:%M:%S")}
     try:
         with smtplib.SMTP_SSL("smtp.gmail.com", 465) as smtp:
             smtp.login(
-                os.getenv("EMAIL_USER"),
-                os.getenv("EMAIL_PASS")
+                #os.getenv("EMAIL_USER"),
+                #os.getenv("EMAIL_PASS")
+                "sstestmail2026@gmail.com",
+                "wlop zwla kudi xajx"
             )
             smtp.send_message(msg)
     except Exception as e:

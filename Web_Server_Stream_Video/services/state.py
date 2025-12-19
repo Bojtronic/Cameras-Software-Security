@@ -1,5 +1,4 @@
 import threading
-import time
 
 # Estado compartido entre hilo de captura y rutas
 frame_lock = threading.Lock()
@@ -10,9 +9,14 @@ latest_result_ts = 0.0
 
 
 active_rtsp_url = None
-camera_change_event = None
+#camera_change_event = None
+camera_change_event = threading.Event()
 cam = None
 cam_lock = threading.Lock()
+
+caida_lock = threading.Lock()
+caida_activa = False
+caida_ts = None
 
 
 # Instancias inicializadas en app/events.py

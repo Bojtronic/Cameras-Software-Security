@@ -5,12 +5,12 @@ RTSP_URL = "rtsp://admin:TIss9831@192.168.18.14:554/cam/realmonitor?channel=1&su
 
 CAP_BUFFERSIZE = 1
 
-DETECTION_CONF = 0.5
-TRACKING_CONF = 0.5
+DETECTION_CONF = 0.6
+TRACKING_CONF = 0.6
 VIS_THRESH = 0.6
 MIN_LANDMARKS = 8
-HOMBROS_MIN_PX = 40
-HOMBROS_MAX_PX = 1000
+HOMBROS_MIN_PX = 30
+HOMBROS_MAX_PX = 600
 
 FRAMES_ON = 5
 FRAMES_OFF = 5
@@ -21,7 +21,6 @@ POSE_COLORS = {
     "de_pie": (0, 255, 0),
     "sentado": (0, 200, 255),
     "acostado": (255, 200, 0),
-    "dormido": (255, 0, 255),
     "caido": (0, 0, 255),
     "desconocido": (200, 200, 200)
 }
@@ -31,4 +30,4 @@ HOST = "0.0.0.0"
 PORT = 8010
 
 # IP para mostrar en consola (opcional)
-ADVERTISE_IP = "192.168.18.34"
+ADVERTISE_IP = "127.0.0.1"
