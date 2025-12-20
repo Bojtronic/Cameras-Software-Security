@@ -35,7 +35,18 @@ async def lifespan(app):
         min_visible_landmarks=config.MIN_LANDMARKS,
         hombros_min_px=config.HOMBROS_MIN_PX,
         hombros_max_px=config.HOMBROS_MAX_PX,
-        dibujar=False
+        model_complexity=config.MODEL_COMPLEXITY,
+        enable_segmentation=config.ENABLE_SEGMENTATION,
+        smooth_landmarks=config.SMOOTH_LANDMARKS,
+        dibujar=config.DIBUJAR,
+        
+        min_body_height = config.MIN_BODY_HEIGHT,
+        aspect_ratio_lying = config.ASPECT_RATIO_LYING,
+        max_angle_standing = config.MAX_ANGLE_STANDING,
+        min_angle_lying = config.MIN_ANGLE_LYING,
+        head_tilt_min_standing = config.HEAD_TILT_MIN_STANDING,
+        com_y_standing_max = config.COM_Y_STANDING_MAX,
+        com_y_sitting_max = config.COM_Y_SITTING_MAX
     )
 
     presence = PersonPresenceController(
@@ -62,6 +73,7 @@ async def lifespan(app):
     # ===== Thread principal =====
     def capture_and_process():
         nonlocal prev_pose, prev_pose_ts, confirmar_caida_frames, CAIDA_CONFIRMADA
+
         while running_event.is_set():
 
             # 🔁 Cambio de cámara solicitado
@@ -98,24 +110,22 @@ async def lifespan(app):
             persona_real = presence.update(present)
 
             frame_to_stream = frame.copy()
-            pose_name = None
+            pose_name = "desconocido"
 
-            if persona_real and result.get("landmarks") is not None:
-                lm = result["landmarks"]
-                
-                if result.get("visibility_count", 0) < config.MIN_LANDMARKS:
-                    pose_name = "desconocido"
-    
-                else:
-                    pose_name = detector.clasificar_pose(
-                        lm,
-                        img_w=frame.shape[1],
-                        img_h=frame.shape[0]
-                    )
+            # ======================================================
+            # 👤 PERSONA PRESENTE → CLASIFICAR POSE
+            # ======================================================
+            if persona_real and present:
+
+                # Clasificación usando features ya calculadas
+                pose_name = detector.clasificar_pose(result)
 
                 now = time.time()
                 caida_detectada = False
 
+                # ----------------------------------
+                # Detección de transición rápida (caída)
+                # ----------------------------------
                 if prev_pose is not None and prev_pose_ts is not None:
                     transition_time = now - prev_pose_ts
 
@@ -126,7 +136,7 @@ async def lifespan(app):
                     ):
                         caida_detectada = True
 
-                # Confirmación por frames
+                # Confirmación por frames consecutivos
                 if caida_detectada:
                     confirmar_caida_frames += 1
                 else:
@@ -134,13 +144,17 @@ async def lifespan(app):
 
                 CAIDA_CONFIRMADA = confirmar_caida_frames >= 3
 
-                # Actualizar pose previa solo si es válida
+                # Actualizar pose previa solo si es estable
                 if pose_name != "desconocido" and not CAIDA_CONFIRMADA:
                     prev_pose = pose_name
                     prev_pose_ts = now
 
+                # ----------------------------------
                 # Visualización
-                draw_pose_on_frame(frame_to_stream, lm)
+                # ----------------------------------
+                if result.get("landmarks") is not None:
+                    draw_pose_on_frame(frame_to_stream, result["landmarks"])
+
                 color = get_pose_color(pose_name)
 
                 cv2.putText(
@@ -159,18 +173,20 @@ async def lifespan(app):
                             state.caida_activa = True
                             state.caida_ts = now
 
-                            cv2.putText(
-                                frame_to_stream,
-                                "!!! CAIDA DETECTADA !!!",
-                                (20, 100),
-                                cv2.FONT_HERSHEY_SIMPLEX,
-                                1.3,
-                                (0, 0, 255),
-                                4
-                            )
+                    cv2.putText(
+                        frame_to_stream,
+                        "!!! CAIDA DETECTADA !!!",
+                        (20, 100),
+                        cv2.FONT_HERSHEY_SIMPLEX,
+                        1.3,
+                        (0, 0, 255),
+                        4
+                    )
 
+            # ======================================================
+            # 🚫 NO HAY PERSONA REAL
+            # ======================================================
             else:
-                # Reset total cuando no hay persona real
                 with state.caida_lock:
                     state.caida_activa = False
                     state.caida_ts = None
@@ -190,7 +206,9 @@ async def lifespan(app):
                     2
                 )
 
-            # 📤 Publicar frame
+            # ======================================================
+            # 📤 Publicar frame y resultados
+            # ======================================================
             with state.frame_lock:
                 state.current_frame = frame_to_stream
                 state.latest_result = {
@@ -199,15 +217,18 @@ async def lifespan(app):
                     "present": present,
                     "pose": pose_name,
                     "caida": CAIDA_CONFIRMADA,
-                    "visibility_count": result.get("visibility_count"),
-                    "head_tilt": result.get("head_tilt"),
-                    "shoulder_px": result.get("shoulder_px"),
-                    "angle_torso_deg": result.get("angle_torso_deg")
-                }
 
+                    # Métricas útiles (debug / telemetría)
+                    "visibility_count": result.get("visibility_count"),
+                    "body_height": result.get("body_height"),
+                    "aspect_ratio": result.get("aspect_ratio"),
+                    "angle_from_vertical": result.get("angle_from_vertical"),
+                    "center_of_mass_y": result.get("center_of_mass_y"),
+                }
                 state.latest_result_ts = state.latest_result["timestamp"]
 
             time.sleep(0.005)
+
 
     # 🚀 Arrancar thread
     th = threading.Thread(target=capture_and_process, daemon=True)
