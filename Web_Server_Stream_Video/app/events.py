@@ -19,13 +19,18 @@ async def lifespan(app):
     """
 
     # ===== Cámara inicial (por defecto) =====
-    state.set_active_camera(config.RTSP_URL)
+    #state.set_active_camera(config.RTSP_URL)
+    state.set_active_camera(None)
 
     with state.cam_lock:
+        """
         state.cam = Camara(
             state.active_rtsp_url,
             buffer_size=config.CAP_BUFFERSIZE
         )
+        """
+        
+        state.cam = None
 
     # ===== Detector =====
     detector = PersonDetector(
