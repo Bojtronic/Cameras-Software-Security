@@ -1,18 +1,56 @@
+// ==================================================
+// ESTADO GLOBAL
+// ==================================================
 let discoveredDevices = [];
 let discoveredStreams = [];
+let videoActivo = false;
 
-const ipEl = () => document.getElementById("ip");
-const userEl = () => document.getElementById("user");
-const passEl = () => document.getElementById("password");
-const portEl = () => document.getElementById("port");
-const rtspEl = () => document.getElementById("rtsp");
+// ==================================================
+// CACHE DE ELEMENTOS DOM (mejora rendimiento)
+// ==================================================
+const dom = {
+    ip: document.getElementById("ip"),
+    user: document.getElementById("user"),
+    password: document.getElementById("password"),
+    port: document.getElementById("port"),
+    rtsp: document.getElementById("rtsp"),
 
+    videoFeed: document.getElementById("videoFeed"),
+    videoPlaceholder: document.getElementById("video-placeholder"),
+
+    cameraStatus: document.getElementById("camera-status"),
+    currentCamera: document.getElementById("currentCamera"),
+
+    personaReal: document.getElementById("personaReal"),
+    poseName: document.getElementById("poseName"),
+    visibilityCount: document.getElementById("visibilityCount"),
+    headTilt: document.getElementById("headTilt"),
+};
+
+// ==================================================
+// HELPERS PARA INPUTS (se mantienen nombres)
+// ==================================================
+const ipEl = () => dom.ip;
+const userEl = () => dom.user;
+const passEl = () => dom.password;
+const portEl = () => dom.port;
+const rtspEl = () => dom.rtsp;
+
+// ==================================================
+// UI
+// ==================================================
 function toggleSidebar() {
-    const sidebar = document.getElementById("sidebar");
-    sidebar.classList.toggle("closed");
+    document.getElementById("sidebar")?.classList.toggle("closed");
 }
 
+function resetVideoUI() {
+    dom.videoFeed.src = "static/no_video.png";
+    videoActivo = false;
+}
 
+// ==================================================
+// ONVIF
+// ==================================================
 async function probeOnvif() {
     setStatus("Buscando streams ONVIF...", "loading");
 
@@ -28,7 +66,6 @@ async function probeOnvif() {
     });
 
     const data = await res.json();
-
     const list = document.getElementById("rtspList");
     list.innerHTML = `<option value="">-- Seleccione un stream --</option>`;
 
@@ -84,20 +121,17 @@ async function probeOnvifFromNetwork() {
     }
 }
 
-
-
+// ==================================================
+// SELECCIÓN DE STREAM
+// ==================================================
 function selectFromList() {
     const list = document.getElementById("rtspList");
-    const rtspInput = document.getElementById("rtsp");
+    if (!list?.value) return;
 
+    let rtsp = list.value;
     const user = userEl().value.trim();
     const password = passEl().value.trim();
 
-    if (!list.value) return;
-
-    let rtsp = list.value;
-
-    // Insertar credenciales si NO existen
     if (!rtsp.includes("@") && user && password) {
         rtsp = rtsp.replace(
             /^rtsp:\/\//i,
@@ -105,18 +139,17 @@ function selectFromList() {
         );
     }
 
-    rtspInput.value = rtsp;
+    rtspEl().value = rtsp;
     setStatus("RTSP seleccionado", "ok");
 }
 
 function selectNetworkStream() {
     const list = document.getElementById("networkRtspList");
-    if (!list.value) return;
-
-    const user = document.getElementById("net_user").value.trim();
-    const password = document.getElementById("net_password").value.trim();
+    if (!list?.value) return;
 
     let rtsp = list.value;
+    const user = document.getElementById("net_user").value.trim();
+    const password = document.getElementById("net_password").value.trim();
 
     if (!rtsp.includes("@") && user && password) {
         rtsp = rtsp.replace(
@@ -125,19 +158,20 @@ function selectNetworkStream() {
         );
     }
 
-    document.getElementById("rtsp").value = rtsp;
+    rtspEl().value = rtsp;
     setStatus("RTSP listo para probar o activar", "ok");
 }
 
-
+// ==================================================
+// CÁMARA
+// ==================================================
 async function testCamera() {
-    const rtsp = rtspEl().value;
     setStatus("Probando cámara...", "loading");
 
     const res = await fetch("/camera/test", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ rtsp })
+        body: JSON.stringify({ rtsp: rtspEl().value })
     });
 
     const data = await res.json();
@@ -147,11 +181,9 @@ async function testCamera() {
     );
 }
 
-
 async function selectCamera() {
     const rtsp = rtspEl().value.trim();
 
-    // 1️⃣ Validación básica
     if (!rtsp) {
         setStatus("Ingrese una URL RTSP antes de activar", "error");
         return;
@@ -176,166 +208,99 @@ async function selectCamera() {
         if (data.success) {
             setStatus("Cámara activada correctamente", "ok");
             cargarCamaraActual();
-            refrescarVideo();
         } else {
             setStatus(data.error || "No se pudo activar la cámara", "error");
         }
-
     } catch (err) {
         console.error(err);
         setStatus("Error de comunicación con el servidor", "error");
     }
 }
 
+// ==================================================
+// VIDEO
+// ==================================================
+function iniciarVideo() {
+    dom.videoFeed.style.display = "block";
+    dom.videoPlaceholder.style.display = "none";
 
-function selectNetworkCamera() {
-    const list = document.getElementById("networkCameraList");
-    if (!list.value) return;
-
-    const selected = list.selectedOptions[0];
-    const ports = JSON.parse(selected.dataset.ports || "[]");
-
-    // ✅ IP seleccionada
-    const selectedIp = list.value;
-
-    // ✅ Puerto sugerido
-    const selectedPort =
-        ports.includes(80) ? 80 :
-            ports.includes(554) ? 554 :
-                ports[0] || 80;
-
-    // ✅ Asignar a los campos existentes
-    document.getElementById("ip").value = selectedIp;
-    document.getElementById("port").value = selectedPort;
-
-    // Limpiar credenciales
-    document.getElementById("user").value = "";
-    document.getElementById("password").value = "";
-
-    setStatus("Cámara seleccionada, ingrese credenciales", "idle");
+    videoActivo = true;
+    refrescarVideo();
 }
-
-
-
-async function scanNetwork() {
-    setStatus("Escaneando red local...", "loading");
-
-    const res = await fetch("/camera/network-scan", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" }
-    });
-
-    const data = await res.json();
-
-    const networkList = document.getElementById("networkCameraList");
-
-    // ✅ NUEVO: Validación
-    if (!networkList) {
-        console.warn("networkCameraList no existe en el DOM");
-        setStatus("Interfaz no contiene selector de cámaras", "error");
-        return;
-    }
-
-    networkList.innerHTML = `<option value="">-- Seleccione una cámara --</option>`;
-
-    if (data.success && data.devices.length > 0) {
-        discoveredDevices = data.devices;
-
-        data.devices.forEach(d => {
-            const opt = document.createElement("option");
-            opt.value = d.ip;
-            opt.text = `📷 ${d.ip} (puertos: ${d.ports.join(", ")})`;
-            opt.dataset.ports = JSON.stringify(d.ports);
-            networkList.appendChild(opt);
-        });
-
-        setStatus(`Cámaras detectadas: ${data.devices.length}`, "ok");
-    } else {
-        setStatus("No se detectaron cámaras en la red", "error");
-    }
-}
-
-
 
 function refrescarVideo() {
-    const img = document.getElementById("videoFeed");
-    img.src = "/video?t=" + Date.now();
+    if (!videoActivo) return;
+
+    dom.videoFeed.src = "/video?t=" + Date.now();
 }
 
+// ==================================================
+// ESTADO
+// ==================================================
 function setStatus(msg, type = "idle") {
-    const el = document.getElementById("camera-status");
-    el.innerText = msg;
-    el.className = `status ${type}`;
+    dom.cameraStatus.innerText = msg;
+    dom.cameraStatus.className = `status ${type}`;
 }
 
+async function actualizarEstado() {
+    try {
+        const res = await fetch("/persona");
+        if (!res.ok) throw new Error("Respuesta no OK");
 
+        const data = await res.json();
 
-function actualizarEstado() {
-    fetch("/persona")
-        .then(r => {
-            if (!r.ok) throw new Error("Respuesta no OK");
-            return r.json();
-        })
-        .then(data => {
-            document.getElementById("personaReal").innerText =
-                data.persona_detectada ? "Sí" : "No";
+        dom.personaReal.innerText = data.persona_detectada ? "Sí" : "No";
+        dom.poseName.innerText = data.pose || "--";
+        dom.visibilityCount.innerText = data.meta?.visibility_count ?? "--";
+        dom.headTilt.innerText = data.meta?.head_tilt ?? "--";
 
-            document.getElementById("poseName").innerText =
-                data.pose || "--";
-
-            document.getElementById("visibilityCount").innerText =
-                data.meta?.visibility_count ?? "--";
-
-            document.getElementById("headTilt").innerText =
-                data.meta?.head_tilt ?? "--";
-        })
-        .catch(e => log("Error obteniendo estado: " + e));
+    } catch (e) {
+        console.warn("Error obteniendo estado:", e);
+    }
 }
 
 function cargarCamaraActual() {
     fetch("/camera/current")
         .then(r => r.json())
         .then(data => {
-            document.getElementById("currentCamera").innerText =
-                data.rtsp || "No definida";
+            dom.currentCamera.innerText = data.rtsp || "No definida";
+            iniciarVideo(); // activar video solo cuando hay cámara
         })
         .catch(e => console.error(e));
 }
 
-
+// ==================================================
+// ALERTAS
+// ==================================================
 async function enviarAlertaWhatsApp_1() {
     await fetch("/alerts/sendWhatsApp1", { method: "POST" });
-    console.log("alerta Whatsapp enviada 1");
 }
 
 async function enviarAlertaCorreo_1() {
     await fetch("/alerts/sendEmail1", { method: "POST" });
-    console.log("alerta Correo enviada 1");
 }
-
-
 
 async function enviarAlertaWhatsApp_2() {
     const res = await fetch("/alerts/sendWhatsApp2");
     const data = await res.json();
-
     window.open(data.url, "_blank", "noopener,noreferrer");
-
-    console.log("Alerta WhatsApp (link desde backend)");
 }
 
 async function enviarAlertaCorreo_2() {
     const res = await fetch("/alerts/sendEmail2");
     const data = await res.json();
-
     window.open(data.url, "_blank", "noopener,noreferrer");
-
-    console.log("Alerta Correo (link desde backend)");
 }
 
+// ==================================================
+// INICIO
+// ==================================================
+resetVideoUI();
 
+//cargarCamaraActual();
 
-cargarCamaraActual();
-
-// Actualizar cada 2 segundos
+// Estado cada 2 segundos
 setInterval(actualizarEstado, 2000);
+
+// Video solo si está activo
+setInterval(refrescarVideo, 1000);
