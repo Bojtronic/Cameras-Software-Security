@@ -15,24 +15,21 @@ from services import state
 @asynccontextmanager
 async def lifespan(app):
     """
-    Inicializa la camara, detector y arranca el hilo de captura/procesado.
+    Inicializa cámara, detector y arranca el hilo de captura/procesado.
+    Optimizado para menor CPU y latencia.
     """
 
-    # ===== Cámara inicial (por defecto) =====
-    #state.set_active_camera(config.RTSP_URL)
+    # =========================
+    # ESTADO INICIAL
+    # =========================
     state.set_active_camera(None)
 
     with state.cam_lock:
-        """
-        state.cam = Camara(
-            state.active_rtsp_url,
-            buffer_size=config.CAP_BUFFERSIZE
-        )
-        """
-        
         state.cam = None
 
-    # ===== Detector =====
+    # =========================
+    # DETECTOR
+    # =========================
     detector = PersonDetector(
         min_detection_conf=config.DETECTION_CONF,
         min_tracking_conf=config.TRACKING_CONF,
@@ -44,14 +41,14 @@ async def lifespan(app):
         enable_segmentation=config.ENABLE_SEGMENTATION,
         smooth_landmarks=config.SMOOTH_LANDMARKS,
         dibujar=config.DIBUJAR,
-        
-        min_body_height = config.MIN_BODY_HEIGHT,
-        aspect_ratio_lying = config.ASPECT_RATIO_LYING,
-        max_angle_standing = config.MAX_ANGLE_STANDING,
-        min_angle_lying = config.MIN_ANGLE_LYING,
-        head_tilt_min_standing = config.HEAD_TILT_MIN_STANDING,
-        com_y_standing_max = config.COM_Y_STANDING_MAX,
-        com_y_sitting_max = config.COM_Y_SITTING_MAX
+
+        min_body_height=config.MIN_BODY_HEIGHT,
+        aspect_ratio_lying=config.ASPECT_RATIO_LYING,
+        max_angle_standing=config.MAX_ANGLE_STANDING,
+        min_angle_lying=config.MIN_ANGLE_LYING,
+        head_tilt_min_standing=config.HEAD_TILT_MIN_STANDING,
+        com_y_standing_max=config.COM_Y_STANDING_MAX,
+        com_y_sitting_max=config.COM_Y_SITTING_MAX
     )
 
     presence = PersonPresenceController(
@@ -65,23 +62,26 @@ async def lifespan(app):
     state.running_event = running_event
     state.detector = detector
     state.presence = presence
-
-    # Evento para cambio de cámara
     state.camera_change_event = threading.Event()
 
+    # =========================
+    # VARIABLES DE CAÍDA
+    # =========================
     prev_pose = None
     prev_pose_ts = None
     confirmar_caida_frames = 0
     CAIDA_CONFIRMADA = False
 
-
-    # ===== Thread principal =====
-    def capture_and_process():
-        nonlocal prev_pose, prev_pose_ts, confirmar_caida_frames, CAIDA_CONFIRMADA
+    # =========================
+    # THREAD PRINCIPAL
+    # =========================
+    def capture_loop():
+        idle_sleep = 0.03
+        active_sleep = 0.01
 
         while running_event.is_set():
 
-            # 🔁 Cambio de cámara solicitado
+            # 🔁 Cambio de cámara
             if state.camera_change_event.is_set():
                 with state.cam_lock:
                     if state.cam:
@@ -94,103 +94,90 @@ async def lifespan(app):
                 time.sleep(0.1)
                 continue
 
-            # 🎥 Obtener frame
             with state.cam_lock:
                 cam = state.cam
 
             if cam is None:
-                time.sleep(0.05)
+                time.sleep(idle_sleep)
                 continue
 
             frame = cam.obtener_frame()
             if frame is None:
-                time.sleep(0.03)
+                time.sleep(idle_sleep)
                 continue
 
-            # 🧠 Procesamiento IA
+            # 📥 Guardar SOLO el último frame
+            with state.frame_lock:
+                state.latest_raw_frame = frame
+                state.last_frame_ts = time.time()
+
+            time.sleep(active_sleep)
+
+
+    def analysis_loop():
+        nonlocal prev_pose, prev_pose_ts, confirmar_caida_frames, CAIDA_CONFIRMADA
+
+        idle_sleep = 0.01
+
+        while running_event.is_set():
+
+            with state.frame_lock:
+                frame = state.latest_raw_frame
+                frame_ts = state.last_frame_ts
+
+            if frame is None or frame_ts == last_processed_ts:
+                time.sleep(idle_sleep)
+                continue
+
+            last_processed_ts = frame_ts
+
+
+            now = time.time()
+
+            frame_for_ai = frame.copy()
+            
+            # 🧠 IA
             with state.process_lock:
-                result = detector.analyze(frame)
+                result = detector.analyze(frame_for_ai)
 
             present = result.get("present", False)
             persona_real = presence.update(present)
 
-            frame_to_stream = frame.copy()
             pose_name = "desconocido"
+            draw_needed = False
+            frame_out = frame
 
-            # ======================================================
-            # 👤 PERSONA PRESENTE → CLASIFICAR POSE
-            # ======================================================
+            # =========================
+            # PERSONA DETECTADA
+            # =========================
             if persona_real and present:
 
-                # Clasificación usando features ya calculadas
                 pose_name = detector.clasificar_pose(result)
-
-                now = time.time()
                 caida_detectada = False
 
-                # ----------------------------------
-                # Detección de transición rápida (caída)
-                # ----------------------------------
-                if prev_pose is not None and prev_pose_ts is not None:
-                    transition_time = now - prev_pose_ts
-
+                if prev_pose and prev_pose_ts:
                     if (
                         prev_pose in ("de_pie", "sentado")
                         and pose_name == "acostado"
-                        and transition_time < 1.2
+                        and (now - prev_pose_ts) < 1.2
                     ):
                         caida_detectada = True
 
-                # Confirmación por frames consecutivos
-                if caida_detectada:
-                    confirmar_caida_frames += 1
-                else:
-                    confirmar_caida_frames = 0
+                confirmar_caida_frames = (
+                    confirmar_caida_frames + 1 if caida_detectada else 0
+                )
 
                 CAIDA_CONFIRMADA = confirmar_caida_frames >= 3
 
-                # Actualizar pose previa solo si es estable
                 if pose_name != "desconocido" and not CAIDA_CONFIRMADA:
                     prev_pose = pose_name
                     prev_pose_ts = now
 
-                # ----------------------------------
-                # Visualización
-                # ----------------------------------
-                if result.get("landmarks") is not None:
-                    draw_pose_on_frame(frame_to_stream, result["landmarks"])
+                draw_needed = True
 
-                color = get_pose_color(pose_name)
-
-                cv2.putText(
-                    frame_to_stream,
-                    f"POSE: {pose_name.upper()}",
-                    (20, 50),
-                    cv2.FONT_HERSHEY_SIMPLEX,
-                    1.2,
-                    color,
-                    3
-                )
-
-                if CAIDA_CONFIRMADA:
-                    with state.caida_lock:
-                        if not state.caida_activa:
-                            state.caida_activa = True
-                            state.caida_ts = now
-
-                    cv2.putText(
-                        frame_to_stream,
-                        "!!! CAIDA DETECTADA !!!",
-                        (20, 100),
-                        cv2.FONT_HERSHEY_SIMPLEX,
-                        1.3,
-                        (0, 0, 255),
-                        4
-                    )
-
-            # ======================================================
-            # 🚫 NO HAY PERSONA REAL
-            # ======================================================
+            # =========================
+            # NO HAY PERSONA
+            # =========================
             else:
                 with state.caida_lock:
                     state.caida_activa = False
@@ -200,44 +187,86 @@ async def lifespan(app):
                 prev_pose_ts = None
                 confirmar_caida_frames = 0
                 CAIDA_CONFIRMADA = False
+                draw_needed = True
 
-                cv2.putText(
-                    frame_to_stream,
-                    "NO HAY PERSONA",
-                    (20, 50),
-                    cv2.FONT_HERSHEY_SIMPLEX,
-                    1.0,
-                    (200, 200, 200),
-                    2
-                )
+            # =========================
+            # DIBUJO
+            # =========================
+            if draw_needed:
+                frame_out = frame.copy()
 
-            # ======================================================
-            # 📤 Publicar frame y resultados
-            # ======================================================
+                if persona_real and present:
+                    if result.get("landmarks") is not None:
+                        draw_pose_on_frame(frame_out, result["landmarks"])
+
+                    color = get_pose_color(pose_name)
+
+                    cv2.putText(
+                        frame_out,
+                        f"POSE: {pose_name.upper()}",
+                        (20, 50),
+                        cv2.FONT_HERSHEY_SIMPLEX,
+                        1.2,
+                        color,
+                        3
+                    )
+
+                    if CAIDA_CONFIRMADA:
+                        with state.caida_lock:
+                            if not state.caida_activa:
+                                state.caida_activa = True
+                                state.caida_ts = now
+
+                        cv2.putText(
+                            frame_out,
+                            "!!! CAIDA DETECTADA !!!",
+                            (20, 100),
+                            cv2.FONT_HERSHEY_SIMPLEX,
+                            1.3,
+                            (0, 0, 255),
+                            4
+                        )
+                else:
+                    cv2.putText(
+                        frame_out,
+                        "NO HAY PERSONA",
+                        (20, 50),
+                        cv2.FONT_HERSHEY_SIMPLEX,
+                        1.0,
+                        (200, 200, 200),
+                        2
+                    )
+
+            # =========================
+            # PUBLICAR
+            # =========================
             with state.frame_lock:
-                state.current_frame = frame_to_stream
+                state.current_frame = frame_out
                 state.latest_result = {
-                    "timestamp": time.time(),
+                    "timestamp": now,
                     "persona_real": persona_real,
                     "present": present,
                     "pose": pose_name,
                     "caida": CAIDA_CONFIRMADA,
-
-                    # Métricas útiles (debug / telemetría)
                     "visibility_count": result.get("visibility_count"),
                     "body_height": result.get("body_height"),
                     "aspect_ratio": result.get("aspect_ratio"),
                     "angle_from_vertical": result.get("angle_from_vertical"),
                     "center_of_mass_y": result.get("center_of_mass_y"),
                 }
-                state.latest_result_ts = state.latest_result["timestamp"]
+                state.latest_result_ts = now
 
-            time.sleep(0.005)
+            time.sleep(idle_sleep)
 
 
-    # 🚀 Arrancar thread
-    th = threading.Thread(target=capture_and_process, daemon=True)
-    th.start()
+    # =========================
+    # ARRANQUE
+    # =========================
+    t_capture = threading.Thread(target=capture_loop, daemon=True)
+    t_analysis = threading.Thread(target=analysis_loop, daemon=True)
+
+    t_capture.start()
+    t_analysis.start()
 
     try:
         yield
@@ -247,4 +276,3 @@ async def lifespan(app):
         with state.cam_lock:
             if state.cam:
                 state.cam.liberar()
-

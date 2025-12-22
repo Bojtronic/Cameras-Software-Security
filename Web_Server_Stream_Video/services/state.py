@@ -18,6 +18,8 @@ caida_lock = threading.Lock()
 caida_activa = False
 caida_ts = None
 
+latest_raw_frame = None
+last_frame_ts = 0.0
 
 # Instancias inicializadas en app/events.py
 camara = None
