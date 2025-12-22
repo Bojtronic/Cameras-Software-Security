@@ -184,6 +184,13 @@ AI_MAX_WIDTH = 640     # tamaño apropiado para el procesamiento de IA, buen bal
 AI_MAX_HEIGHT = 640    # opcional, se usa width como referencia
 
 
+
+CAMERA_TIMEOUT = 2.0          # segundos sin frame = caída
+CAMERA_RECONNECT_COOLDOWN = 3.0
+MAX_RECONNECT_ATTEMPTS = 5
+
+
+
 # Frames consecutivos necesarios para confirmar presencia.
 # Evita falsos positivos intermitentes.
 FRAMES_ON = 5

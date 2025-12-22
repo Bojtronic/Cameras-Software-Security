@@ -21,6 +21,9 @@ caida_ts = None
 latest_raw_frame = None
 last_frame_ts = 0.0
 
+camera_dead = False
+last_reconnect_ts = 0
+
 # Instancias inicializadas en app/events.py
 camara = None
 detector = None

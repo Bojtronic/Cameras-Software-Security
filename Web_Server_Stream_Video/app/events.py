@@ -134,6 +134,7 @@ async def lifespan(app):
 
         idle_sleep = 0.01
         last_processed_ts = None 
+        
 
         while running_event.is_set():
 
@@ -274,15 +275,66 @@ async def lifespan(app):
             time.sleep(idle_sleep)
 
 
+    def camera_watchdog_loop():
+        reconnect_attempts = 0
+
+        while running_event.is_set():
+            time.sleep(0.5)
+
+            with state.frame_lock:
+                last_ts = state.last_frame_ts
+
+            if last_ts is None:
+                continue
+
+            now = time.time()
+
+            # 🛑 Cámara congelada
+            if now - last_ts > config.CAMERA_TIMEOUT:
+
+                # Evita reconectar en loop
+                if now - state.last_reconnect_ts < config.CAMERA_RECONNECT_COOLDOWN:
+                    continue
+
+                reconnect_attempts += 1
+                state.last_reconnect_ts = now
+                state.camera_dead = True
+
+                print("⚠️ Watchdog: cámara caída, reconectando...")
+
+                with state.cam_lock:
+                    if state.cam:
+                        state.cam.liberar()
+                        state.cam = None
+
+                    if reconnect_attempts <= config.MAX_RECONNECT_ATTEMPTS:
+                        state.cam = Camara(
+                            state.active_rtsp_url,
+                            buffer_size=config.CAP_BUFFERSIZE
+                        )
+                    else:
+                        print("❌ Watchdog: demasiados intentos, esperando…")
+                        reconnect_attempts = 0
+                        time.sleep(5)
+                        continue
+
+            else:
+                # 🟢 Cámara viva
+                reconnect_attempts = 0
+                state.camera_dead = False
+
+
 
     # =========================
     # ARRANQUE
     # =========================
     t_capture = threading.Thread(target=capture_loop, daemon=True)
     t_analysis = threading.Thread(target=analysis_loop, daemon=True)
+    t_watchdog = threading.Thread(target=camera_watchdog_loop, daemon=True)
 
     t_capture.start()
     t_analysis.start()
+    t_watchdog.start()
 
     try:
         yield
