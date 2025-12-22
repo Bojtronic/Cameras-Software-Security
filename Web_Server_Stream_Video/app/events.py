@@ -118,6 +118,7 @@ async def lifespan(app):
         nonlocal prev_pose, prev_pose_ts, confirmar_caida_frames, CAIDA_CONFIRMADA
 
         idle_sleep = 0.01
+        last_processed_ts = None  # 🔑 NECESARIO
 
         while running_event.is_set():
 
@@ -130,13 +131,11 @@ async def lifespan(app):
                 continue
 
             last_processed_ts = frame_ts
-
-
             now = time.time()
 
+            # 🧠 Copia SOLO para IA
             frame_for_ai = frame.copy()
-            
-            # 🧠 IA
+
             with state.process_lock:
                 result = detector.analyze(frame_for_ai)
 
@@ -257,6 +256,7 @@ async def lifespan(app):
                 state.latest_result_ts = now
 
             time.sleep(idle_sleep)
+
 
 
     # =========================
