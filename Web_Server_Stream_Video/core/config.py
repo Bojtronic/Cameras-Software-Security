@@ -1,6 +1,6 @@
 #RTSP_URL = "rtsp://admin:TIss9831@192.168.18.14:554/"
 #RTSP_URL = "rtsp://admin:TIss9831@192.168.18.14:554/cam/realmonitor?channel=1&subtype=0"
-RTSP_URL = "rtsp://admin:TIss9831@192.168.18.14:554/cam/realmonitor?channel=1&subtype=1"
+#RTSP_URL = "rtsp://admin:TIss9831@192.168.18.14:554/cam/realmonitor?channel=1&subtype=1"
 
 
 # ==========================
@@ -177,6 +177,11 @@ COM_Y_SITTING_MAX = 0.85
 # 1 = mínima latencia (RECOMENDADO)
 # >1 = más estabilidad, más retraso
 CAP_BUFFERSIZE = 1
+
+
+
+AI_MAX_WIDTH = 640     # tamaño apropiado para el procesamiento de IA, buen balance
+AI_MAX_HEIGHT = 640    # opcional, se usa width como referencia
 
 
 # Frames consecutivos necesarios para confirmar presencia.

@@ -73,6 +73,21 @@ async def lifespan(app):
     CAIDA_CONFIRMADA = False
 
     # =========================
+    # Función para bajar la resolución de la imagen a analizar con IA
+    # =========================
+    def downscale_for_ai(frame, max_width):
+        h, w = frame.shape[:2]
+
+        if w <= max_width:
+            return frame  # no escalar si ya es pequeño
+
+        scale = max_width / w
+        new_w = int(w * scale)
+        new_h = int(h * scale)
+
+        return cv2.resize(frame, (new_w, new_h), interpolation=cv2.INTER_AREA)
+
+    # =========================
     # THREAD PRINCIPAL
     # =========================
     def capture_loop():
@@ -118,7 +133,7 @@ async def lifespan(app):
         nonlocal prev_pose, prev_pose_ts, confirmar_caida_frames, CAIDA_CONFIRMADA
 
         idle_sleep = 0.01
-        last_processed_ts = None  # 🔑 NECESARIO
+        last_processed_ts = None 
 
         while running_event.is_set():
 
@@ -135,6 +150,7 @@ async def lifespan(app):
 
             # 🧠 Copia SOLO para IA
             frame_for_ai = frame.copy()
+            frame_for_ai = downscale_for_ai(frame_for_ai, config.AI_MAX_WIDTH)
 
             with state.process_lock:
                 result = detector.analyze(frame_for_ai)
