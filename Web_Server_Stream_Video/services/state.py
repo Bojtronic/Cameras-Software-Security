@@ -1,4 +1,5 @@
 import threading
+from core import config
 
 # Estado compartido entre hilo de captura y rutas
 frame_lock = threading.Lock()
@@ -23,6 +24,11 @@ last_frame_ts = 0.0
 
 camera_dead = False
 last_reconnect_ts = 0
+
+ai_fps = config.AI_FPS_MAX
+avg_inference_time = 0.0
+last_ai_ts = 0.0
+
 
 # Instancias inicializadas en app/events.py
 camara = None

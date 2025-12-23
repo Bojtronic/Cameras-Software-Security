@@ -190,6 +190,14 @@ CAMERA_RECONNECT_COOLDOWN = 3.0
 MAX_RECONNECT_ATTEMPTS = 5
 
 
+# FPS dinámico
+AI_FPS_MIN = 2.0
+AI_FPS_MAX = 12.0
+
+AI_TARGET_INFERENCE = 0.08   # segundos (80 ms)
+AI_SMOOTHING = 0.9           # EMA
+
+
 
 # Frames consecutivos necesarios para confirmar presencia.
 # Evita falsos positivos intermitentes.

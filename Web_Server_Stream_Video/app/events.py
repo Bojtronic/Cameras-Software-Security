@@ -132,12 +132,14 @@ async def lifespan(app):
     def analysis_loop():
         nonlocal prev_pose, prev_pose_ts, confirmar_caida_frames, CAIDA_CONFIRMADA
 
-        idle_sleep = 0.01
-        last_processed_ts = None 
-        
+        idle_sleep = 0.005
+        last_processed_ts = None
 
         while running_event.is_set():
 
+            # =========================
+            # OBTENER FRAME
+            # =========================
             with state.frame_lock:
                 frame = state.latest_raw_frame
                 frame_ts = state.last_frame_ts
@@ -147,27 +149,66 @@ async def lifespan(app):
                 continue
 
             last_processed_ts = frame_ts
+
             now = time.time()
 
-            # 🧠 Copia SOLO para IA
-            frame_for_ai = frame.copy()
-            frame_for_ai = downscale_for_ai(frame_for_ai, config.AI_MAX_WIDTH)
+            # =========================
+            # FPS DINÁMICO (GATE)
+            # =========================
+            min_interval = 1.0 / state.ai_fps
+            if now - state.last_ai_ts < min_interval:
+                time.sleep(0.001)
+                continue
 
+            state.last_ai_ts = now
+
+            # =========================
+            # IA (COPIA + DOWNSCALE)
+            # =========================
+            frame_for_ai = frame.copy()
+            frame_for_ai = downscale_for_ai(
+                frame_for_ai,
+                config.AI_MAX_WIDTH
+            )
+
+            t0 = time.time()
             with state.process_lock:
                 result = detector.analyze(frame_for_ai)
+            t1 = time.time()
 
+            inference_time = t1 - t0
+
+            # =========================
+            # EMA + AJUSTE FPS
+            # =========================
+            alpha = config.AI_SMOOTHING
+            state.avg_inference_time = (
+                alpha * state.avg_inference_time
+                + (1 - alpha) * inference_time
+            )
+
+            if state.avg_inference_time > config.AI_TARGET_INFERENCE * 1.2:
+                state.ai_fps = max(
+                    config.AI_FPS_MIN,
+                    state.ai_fps * 0.9
+                )
+
+            elif state.avg_inference_time < config.AI_TARGET_INFERENCE * 0.7:
+                state.ai_fps = min(
+                    config.AI_FPS_MAX,
+                    state.ai_fps * 1.05
+                )
+
+            # =========================
+            # LÓGICA DE PERSONA
+            # =========================
             present = result.get("present", False)
             persona_real = presence.update(present)
 
             pose_name = "desconocido"
-            draw_needed = False
-            frame_out = frame
+            draw_needed = True
 
-            # =========================
-            # PERSONA DETECTADA
-            # =========================
             if persona_real and present:
-
                 pose_name = detector.clasificar_pose(result)
                 caida_detectada = False
 
@@ -189,11 +230,6 @@ async def lifespan(app):
                     prev_pose = pose_name
                     prev_pose_ts = now
 
-                draw_needed = True
-
-            # =========================
-            # NO HAY PERSONA
-            # =========================
             else:
                 with state.caida_lock:
                     state.caida_activa = False
@@ -203,55 +239,53 @@ async def lifespan(app):
                 prev_pose_ts = None
                 confirmar_caida_frames = 0
                 CAIDA_CONFIRMADA = False
-                draw_needed = True
 
             # =========================
-            # DIBUJO
+            # DIBUJO (COPIA FINAL)
             # =========================
-            if draw_needed:
-                frame_out = frame.copy()
+            frame_out = frame.copy()
 
-                if persona_real and present:
-                    if result.get("landmarks") is not None:
-                        draw_pose_on_frame(frame_out, result["landmarks"])
+            if persona_real and present:
+                if result.get("landmarks") is not None:
+                    draw_pose_on_frame(frame_out, result["landmarks"])
 
-                    color = get_pose_color(pose_name)
+                color = get_pose_color(pose_name)
+
+                cv2.putText(
+                    frame_out,
+                    f"POSE: {pose_name.upper()}",
+                    (20, 50),
+                    cv2.FONT_HERSHEY_SIMPLEX,
+                    1.2,
+                    color,
+                    3
+                )
+
+                if CAIDA_CONFIRMADA:
+                    with state.caida_lock:
+                        if not state.caida_activa:
+                            state.caida_activa = True
+                            state.caida_ts = now
 
                     cv2.putText(
                         frame_out,
-                        f"POSE: {pose_name.upper()}",
-                        (20, 50),
+                        "!!! CAIDA DETECTADA !!!",
+                        (20, 100),
                         cv2.FONT_HERSHEY_SIMPLEX,
-                        1.2,
-                        color,
-                        3
+                        1.3,
+                        (0, 0, 255),
+                        4
                     )
-
-                    if CAIDA_CONFIRMADA:
-                        with state.caida_lock:
-                            if not state.caida_activa:
-                                state.caida_activa = True
-                                state.caida_ts = now
-
-                        cv2.putText(
-                            frame_out,
-                            "!!! CAIDA DETECTADA !!!",
-                            (20, 100),
-                            cv2.FONT_HERSHEY_SIMPLEX,
-                            1.3,
-                            (0, 0, 255),
-                            4
-                        )
-                else:
-                    cv2.putText(
-                        frame_out,
-                        "NO HAY PERSONA",
-                        (20, 50),
-                        cv2.FONT_HERSHEY_SIMPLEX,
-                        1.0,
-                        (200, 200, 200),
-                        2
-                    )
+            else:
+                cv2.putText(
+                    frame_out,
+                    "NO HAY PERSONA",
+                    (20, 50),
+                    cv2.FONT_HERSHEY_SIMPLEX,
+                    1.0,
+                    (200, 200, 200),
+                    2
+                )
 
             # =========================
             # PUBLICAR
@@ -269,10 +303,11 @@ async def lifespan(app):
                     "aspect_ratio": result.get("aspect_ratio"),
                     "angle_from_vertical": result.get("angle_from_vertical"),
                     "center_of_mass_y": result.get("center_of_mass_y"),
+                    "ai_fps": round(state.ai_fps, 2),
+                    "ai_latency_ms": int(state.avg_inference_time * 1000),
                 }
-                state.latest_result_ts = now
 
-            time.sleep(idle_sleep)
+                state.latest_result_ts = now
 
 
     def camera_watchdog_loop():
