@@ -16,7 +16,6 @@ const dom = {
     rtsp: document.getElementById("rtsp"),
 
     videoFeed: document.getElementById("videoFeed"),
-    videoPlaceholder: document.getElementById("video-placeholder"),
 
     cameraStatus: document.getElementById("camera-status"),
     currentCamera: document.getElementById("currentCamera"),
@@ -46,6 +45,46 @@ function toggleSidebar() {
 function resetVideoUI() {
     dom.videoFeed.src = "static/no_video.png";
     videoActivo = false;
+}
+
+// ==================================================
+// ESCANEAR RED
+// ==================================================
+async function scanNetwork() {
+    setStatus("Escaneando red local...", "loading");
+
+    const res = await fetch("/camera/network-scan", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" }
+    });
+
+    const data = await res.json();
+
+    const networkList = document.getElementById("networkCameraList");
+
+    if (!networkList) {
+        console.warn("networkCameraList no existe en el DOM");
+        setStatus("Interfaz no contiene selector de cámaras", "error");
+        return;
+    }
+
+    networkList.innerHTML = `<option value="">-- Seleccione una cámara --</option>`;
+
+    if (data.success && data.devices.length > 0) {
+        discoveredDevices = data.devices;
+
+        data.devices.forEach(d => {
+            const opt = document.createElement("option");
+            opt.value = d.ip;
+            opt.text = `📷 ${d.ip} (puertos: ${d.ports.join(", ")})`;
+            opt.dataset.ports = JSON.stringify(d.ports);
+            networkList.appendChild(opt);
+        });
+
+        setStatus(`Cámaras detectadas: ${data.devices.length}`, "ok");
+    } else {
+        setStatus("No se detectaron cámaras en la red", "error");
+    }
 }
 
 // ==================================================
@@ -184,15 +223,12 @@ async function testCamera() {
 async function selectCamera() {
     const rtsp = rtspEl().value.trim();
 
+    // 1️⃣ Validación básica
     if (!rtsp) {
         setStatus("Ingrese una URL RTSP antes de activar", "error");
         return;
     }
 
-    if (!rtsp.toLowerCase().startsWith("rtsp://")) {
-        setStatus("La URL debe comenzar con rtsp://", "error");
-        return;
-    }
 
     setStatus("Activando cámara...", "loading");
 
@@ -208,13 +244,42 @@ async function selectCamera() {
         if (data.success) {
             setStatus("Cámara activada correctamente", "ok");
             cargarCamaraActual();
+            refrescarVideo();
         } else {
             setStatus(data.error || "No se pudo activar la cámara", "error");
         }
+
     } catch (err) {
         console.error(err);
         setStatus("Error de comunicación con el servidor", "error");
     }
+}
+
+function selectNetworkCamera() {
+    const list = document.getElementById("networkCameraList");
+    if (!list.value) return;
+
+    const selected = list.selectedOptions[0];
+    const ports = JSON.parse(selected.dataset.ports || "[]");
+
+    // ✅ IP seleccionada
+    const selectedIp = list.value;
+
+    // ✅ Puerto sugerido
+    const selectedPort =
+        ports.includes(80) ? 80 :
+            ports.includes(554) ? 554 :
+                ports[0] || 80;
+
+    // ✅ Asignar a los campos existentes
+    document.getElementById("ip").value = selectedIp;
+    document.getElementById("port").value = selectedPort;
+
+    // Limpiar credenciales
+    document.getElementById("user").value = "";
+    document.getElementById("password").value = "";
+
+    setStatus("Cámara seleccionada, ingrese credenciales", "idle");
 }
 
 // ==================================================
@@ -222,7 +287,6 @@ async function selectCamera() {
 // ==================================================
 function iniciarVideo() {
     dom.videoFeed.style.display = "block";
-    dom.videoPlaceholder.style.display = "none";
 
     videoActivo = true;
     refrescarVideo();

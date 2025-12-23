@@ -9,6 +9,7 @@ from detectors.person_detector import PersonDetector
 from services.camera_service import Camara
 from services.person_service import PersonPresenceController
 from services.pose_service import draw_pose_on_frame, get_pose_color
+from services.video_service import reset_camera_state
 from services import state
 
 
@@ -86,6 +87,23 @@ async def lifespan(app):
         new_h = int(h * scale)
 
         return cv2.resize(frame, (new_w, new_h), interpolation=cv2.INTER_AREA)
+    
+    # =========================
+    # Función para reestablecer la configuración
+    # =========================
+    def reset_camera_state():
+        with state.cam_lock:
+            if state.cam:
+                state.cam.liberar()
+            state.cam = None
+
+        with state.frame_lock:
+            state.latest_raw_frame = None
+            state.last_frame_ts = None
+
+        state.active_rtsp_url = None
+        state.camera_dead = False
+        state.last_reconnect_ts = 0
 
     # =========================
     # THREAD STREAMING
@@ -96,7 +114,12 @@ async def lifespan(app):
 
         while running_event.is_set():
 
-            # 🔁 Cambio de cámara (RTSP)
+            # 🚫 No hay RTSP activo
+            if not state.active_rtsp_url:
+                time.sleep(0.5)
+                continue
+
+            # 🔁 Cambio de cámara / RTSP
             if state.camera_change_event.is_set():
                 with state.cam_lock:
                     if state.cam is None:
@@ -107,10 +130,15 @@ async def lifespan(app):
                     else:
                         state.cam.actualizar_fuente(state.active_rtsp_url)
 
+                # 🧼 Reset de timestamps al cambiar RTSP
+                with state.frame_lock:
+                    state.last_frame_ts = None
+
                 state.camera_change_event.clear()
                 time.sleep(0.2)
                 continue
 
+            # 📷 Obtener cámara actual
             with state.cam_lock:
                 cam = state.cam
 
@@ -118,18 +146,18 @@ async def lifespan(app):
                 time.sleep(idle_sleep)
                 continue
 
+            # 🎞️ Leer frame
             frame = cam.obtener_frame()
             if frame is None:
                 time.sleep(idle_sleep)
                 continue
 
-            # 📥 Guardar SOLO el último frame
+            # 📥 Guardar último frame válido
             with state.frame_lock:
                 state.latest_raw_frame = frame
                 state.last_frame_ts = time.time()
 
             time.sleep(active_sleep)
-
 
 
     def analysis_loop():
@@ -319,9 +347,16 @@ async def lifespan(app):
         while running_event.is_set():
             time.sleep(0.5)
 
+            # 🚫 No hay RTSP activo → nada que vigilar
+            if not state.active_rtsp_url:
+                reconnect_attempts = 0
+                state.camera_dead = False
+                continue
+
             with state.frame_lock:
                 last_ts = state.last_frame_ts
 
+            # 🟡 Nunca hubo frame → NO watchdog
             if last_ts is None:
                 continue
 
@@ -337,15 +372,19 @@ async def lifespan(app):
                 state.last_reconnect_ts = now
                 state.camera_dead = True
 
-                print("⚠️ Watchdog: cámara congelada, forzando reconexión")
+                print("⚠️ Watchdog: cámara congelada, reiniciando")
 
                 with state.cam_lock:
                     if state.cam:
-                        # 🔄 Forzar cierre, la reapertura es lazy
-                        state.cam._close()
+                        state.cam.liberar()
+                        state.cam = None   # 🔥 CLAVE: limpiar referencia
+
+                # 🔁 Reapertura controlada
+                state.camera_change_event.set()
 
                 if reconnect_attempts >= config.MAX_RECONNECT_ATTEMPTS:
-                    print("❌ Watchdog: demasiados intentos, esperando…")
+                    print("❌ Watchdog: demasiados intentos, enfriando")
+                    reset_camera_state()
                     reconnect_attempts = 0
                     time.sleep(5)
 

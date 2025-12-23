@@ -70,3 +70,4 @@ class Camara:
         """
         with self.lock:
             self._close()
+            

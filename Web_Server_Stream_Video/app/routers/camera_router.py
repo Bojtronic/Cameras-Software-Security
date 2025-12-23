@@ -2,7 +2,7 @@ from fastapi import APIRouter
 from pydantic import BaseModel
 
 from services.onvif_service import get_rtsp_urls
-from services.video_service import test_rtsp_connection
+from services.video_service import test_rtsp_connection, reset_camera_state
 from services import state
 from services.network_scan_service import scan_network, get_local_subnet
 from app.models.network_scan import NetworkScanRequest
@@ -76,22 +76,23 @@ def test_camera(data: RTSPRequest):
 # =====================================================
 # ACTIVAR CÁMARA
 # =====================================================
-
 @router.post("/select")
 def select_camera(data: RTSPRequest):
-    """
-    Establece el RTSP activo y notifica al hilo de captura.
-    """
-    state.active_rtsp_url = data.rtsp
+    rtsp = data.rtsp.strip()
 
-    # Notificar al hilo de captura (si existe)
-    if hasattr(state, "camera_change_event") and state.camera_change_event:
-        state.camera_change_event.set()
+    if not rtsp.lower().startswith("rtsp://"):
+        return {"success": False, "error": "RTSP inválido"}
 
-    return {
-        "success": True,
-        "active_rtsp": data.rtsp
-    }
+    if not test_rtsp_connection(rtsp):
+        reset_camera_state()
+        return {"success": False, "error": "No se pudo conectar"}
+
+    state.active_rtsp_url = rtsp
+    state.camera_change_event.set()
+
+    return {"success": True}
+
+
 
 
 # =====================================================
