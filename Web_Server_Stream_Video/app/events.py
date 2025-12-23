@@ -88,7 +88,7 @@ async def lifespan(app):
         return cv2.resize(frame, (new_w, new_h), interpolation=cv2.INTER_AREA)
 
     # =========================
-    # THREAD PRINCIPAL
+    # THREAD STREAMING
     # =========================
     def capture_loop():
         idle_sleep = 0.03
@@ -96,17 +96,19 @@ async def lifespan(app):
 
         while running_event.is_set():
 
-            # 🔁 Cambio de cámara
+            # 🔁 Cambio de cámara (RTSP)
             if state.camera_change_event.is_set():
                 with state.cam_lock:
-                    if state.cam:
-                        state.cam.liberar()
-                    state.cam = Camara(
-                        state.active_rtsp_url,
-                        buffer_size=config.CAP_BUFFERSIZE
-                    )
+                    if state.cam is None:
+                        state.cam = Camara(
+                            state.active_rtsp_url,
+                            buffer_size=config.CAP_BUFFERSIZE
+                        )
+                    else:
+                        state.cam.actualizar_fuente(state.active_rtsp_url)
+
                 state.camera_change_event.clear()
-                time.sleep(0.1)
+                time.sleep(0.2)
                 continue
 
             with state.cam_lock:
@@ -127,6 +129,7 @@ async def lifespan(app):
                 state.last_frame_ts = time.time()
 
             time.sleep(active_sleep)
+
 
 
     def analysis_loop():
@@ -327,7 +330,6 @@ async def lifespan(app):
             # 🛑 Cámara congelada
             if now - last_ts > config.CAMERA_TIMEOUT:
 
-                # Evita reconectar en loop
                 if now - state.last_reconnect_ts < config.CAMERA_RECONNECT_COOLDOWN:
                     continue
 
@@ -335,23 +337,17 @@ async def lifespan(app):
                 state.last_reconnect_ts = now
                 state.camera_dead = True
 
-                print("⚠️ Watchdog: cámara caída, reconectando...")
+                print("⚠️ Watchdog: cámara congelada, forzando reconexión")
 
                 with state.cam_lock:
                     if state.cam:
-                        state.cam.liberar()
-                        state.cam = None
+                        # 🔄 Forzar cierre, la reapertura es lazy
+                        state.cam._close()
 
-                    if reconnect_attempts <= config.MAX_RECONNECT_ATTEMPTS:
-                        state.cam = Camara(
-                            state.active_rtsp_url,
-                            buffer_size=config.CAP_BUFFERSIZE
-                        )
-                    else:
-                        print("❌ Watchdog: demasiados intentos, esperando…")
-                        reconnect_attempts = 0
-                        time.sleep(5)
-                        continue
+                if reconnect_attempts >= config.MAX_RECONNECT_ATTEMPTS:
+                    print("❌ Watchdog: demasiados intentos, esperando…")
+                    reconnect_attempts = 0
+                    time.sleep(5)
 
             else:
                 # 🟢 Cámara viva

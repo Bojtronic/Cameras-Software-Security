@@ -185,8 +185,8 @@ AI_MAX_HEIGHT = 640    # opcional, se usa width como referencia
 
 
 
-CAMERA_TIMEOUT = 2.0          # segundos sin frame = caída
-CAMERA_RECONNECT_COOLDOWN = 3.0
+CAMERA_TIMEOUT = 5.0          # segundos sin frame = caída
+CAMERA_RECONNECT_COOLDOWN = 5.0
 MAX_RECONNECT_ATTEMPTS = 5
 
 
