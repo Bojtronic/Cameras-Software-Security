@@ -109,33 +109,41 @@ async def lifespan(app):
     # THREAD STREAMING
     # =========================
     def capture_loop():
-        idle_sleep = 0.03
+        idle_sleep = 0.05
         active_sleep = 0.01
 
         while running_event.is_set():
 
             # 🚫 No hay RTSP activo
             if not state.active_rtsp_url:
-                time.sleep(0.5)
+                time.sleep(0.2)
                 continue
 
             # 🔁 Cambio de cámara / RTSP
             if state.camera_change_event.is_set():
                 with state.cam_lock:
-                    if state.cam is None:
-                        state.cam = Camara(
-                            state.active_rtsp_url,
-                            buffer_size=config.CAP_BUFFERSIZE
-                        )
-                    else:
-                        state.cam.actualizar_fuente(state.active_rtsp_url)
 
-                # 🧼 Reset de timestamps al cambiar RTSP
+                    # 💣 DESTRUIR cámara anterior completamente
+                    if state.cam:
+                        try:
+                            state.cam.liberar()
+                        except:
+                            pass
+                        state.cam = None
+
+                    # 🔄 CREAR objeto nuevo (socket nuevo)
+                    state.cam = Camara(
+                        state.active_rtsp_url,
+                        buffer_size=config.CAP_BUFFERSIZE
+                    )
+
+                # 🧼 Limpiar frames y timestamps
                 with state.frame_lock:
+                    state.latest_raw_frame = None
                     state.last_frame_ts = None
 
                 state.camera_change_event.clear()
-                time.sleep(0.2)
+                time.sleep(0.3)   # deja que FFmpeg abra bien
                 continue
 
             # 📷 Obtener cámara actual
@@ -148,6 +156,7 @@ async def lifespan(app):
 
             # 🎞️ Leer frame
             frame = cam.obtener_frame()
+
             if frame is None:
                 time.sleep(idle_sleep)
                 continue
@@ -158,7 +167,6 @@ async def lifespan(app):
                 state.last_frame_ts = time.time()
 
             time.sleep(active_sleep)
-
 
     def analysis_loop():
         nonlocal prev_pose, prev_pose_ts, confirmar_caida_frames, CAIDA_CONFIRMADA

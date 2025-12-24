@@ -84,14 +84,13 @@ def select_camera(data: RTSPRequest):
         return {"success": False, "error": "RTSP inválido"}
 
     if not test_rtsp_connection(rtsp):
-        reset_camera_state()
+        state.active_rtsp_url = None
+        state.camera_change_event.set()   #forzar desconexión 
         return {"success": False, "error": "No se pudo conectar"}
 
     state.active_rtsp_url = rtsp
     state.camera_change_event.set()
-
     return {"success": True}
-
 
 
 

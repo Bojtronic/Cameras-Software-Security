@@ -24,16 +24,21 @@ const dom = {
     poseName: document.getElementById("poseName"),
     visibilityCount: document.getElementById("visibilityCount"),
     headTilt: document.getElementById("headTilt"),
+
+    rtspList: document.getElementById("rtspList"),
+    networkCameraList: document.getElementById("networkCameraList"),
 };
 
+
 // ==================================================
-// HELPERS PARA INPUTS (se mantienen nombres)
+// HELPERS PARA INPUTS
 // ==================================================
 const ipEl = () => dom.ip;
 const userEl = () => dom.user;
 const passEl = () => dom.password;
 const portEl = () => dom.port;
 const rtspEl = () => dom.rtsp;
+
 
 // ==================================================
 // UI
@@ -43,8 +48,42 @@ function toggleSidebar() {
 }
 
 function resetVideoUI() {
-    dom.videoFeed.src = "static/no_video.png";
+    dom.videoFeed.src = "/static/no_video.png";
     videoActivo = false;
+}
+
+// ==================================================
+// UTILIDADES
+// ==================================================
+async function postJSON(url, body) {
+    const res = await fetch(url, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(body)
+    });
+    return res.json();
+}
+
+function buildOption(value, text, dataset = null) {
+    const opt = document.createElement("option");
+    opt.value = value;
+    opt.text = text;
+    if (dataset) Object.assign(opt.dataset, dataset);
+    return opt;
+}
+
+function injectCredentials(rtsp, user, password) {
+    if (!rtsp.includes("@") && user && password) {
+        return rtsp.replace(
+            /^rtsp:\/\//i,
+            `rtsp://${encodeURIComponent(user)}:${encodeURIComponent(password)}@`
+        );
+    }
+    return rtsp;
+}
+
+function getCleanRTSP() {
+    return dom.rtsp.value.trim();
 }
 
 // ==================================================
@@ -53,39 +92,35 @@ function resetVideoUI() {
 async function scanNetwork() {
     setStatus("Escaneando red local...", "loading");
 
-    const res = await fetch("/camera/network-scan", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" }
-    });
+    try {
+        const data = await postJSON("/camera/network-scan", {});
 
-    const data = await res.json();
+        dom.networkCameraList.innerHTML = `<option value="">-- Seleccione una cámara --</option>`;
 
-    const networkList = document.getElementById("networkCameraList");
+        if (data.success && data.devices?.length) {
+            discoveredDevices = data.devices;
 
-    if (!networkList) {
-        console.warn("networkCameraList no existe en el DOM");
-        setStatus("Interfaz no contiene selector de cámaras", "error");
-        return;
-    }
+            const frag = document.createDocumentFragment();
 
-    networkList.innerHTML = `<option value="">-- Seleccione una cámara --</option>`;
+            data.devices.forEach(d => {
+                frag.appendChild(
+                    buildOption(d.ip, `📷 ${d.ip} (puertos: ${d.ports.join(", ")})`, {
+                        ports: JSON.stringify(d.ports)
+                    })
+                );
+            });
 
-    if (data.success && data.devices.length > 0) {
-        discoveredDevices = data.devices;
-
-        data.devices.forEach(d => {
-            const opt = document.createElement("option");
-            opt.value = d.ip;
-            opt.text = `📷 ${d.ip} (puertos: ${d.ports.join(", ")})`;
-            opt.dataset.ports = JSON.stringify(d.ports);
-            networkList.appendChild(opt);
-        });
-
-        setStatus(`Cámaras detectadas: ${data.devices.length}`, "ok");
-    } else {
-        setStatus("No se detectaron cámaras en la red", "error");
+            dom.networkCameraList.appendChild(frag);
+            setStatus(`Cámaras detectadas: ${data.devices.length}`, "ok");
+        } else {
+            setStatus("No se detectaron cámaras en la red", "error");
+        }
+    } catch (e) {
+        console.error(e);
+        setStatus("Error escaneando red", "error");
     }
 }
+
 
 // ==================================================
 // ONVIF
@@ -93,70 +128,81 @@ async function scanNetwork() {
 async function probeOnvif() {
     setStatus("Buscando streams ONVIF...", "loading");
 
-    const ip = ipEl().value;
-    const user = userEl().value;
-    const password = passEl().value;
-    const port = parseInt(portEl().value || "80");
-
-    const res = await fetch("/camera/onvif-probe", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ ip, port, user, password })
-    });
-
-    const data = await res.json();
-    const list = document.getElementById("rtspList");
-    list.innerHTML = `<option value="">-- Seleccione un stream --</option>`;
-
-    if (data.success && data.streams.length > 0) {
-        data.streams.forEach(s => {
-            const opt = document.createElement("option");
-            opt.value = s.rtsp;
-            opt.text = `${s.profile || "Perfil"} - ${s.rtsp}`;
-            list.appendChild(opt);
+    try {
+        const data = await postJSON("/camera/onvif-probe", {
+            ip: ipEl().value,
+            port: parseInt(portEl().value || "80"),
+            user: userEl().value,
+            password: passEl().value
         });
-        setStatus("Streams encontrados", "ok");
-    } else {
-        setStatus(data.error || "No se encontraron streams", "error");
+
+        dom.rtspList.innerHTML = `<option value="">-- Seleccione un stream --</option>`;
+
+        if (data.success && data.streams?.length) {
+            const frag = document.createDocumentFragment();
+
+            data.streams.forEach(s => {
+                frag.appendChild(
+                    buildOption(s.rtsp, `${s.profile || "Perfil"} - ${s.rtsp}`, { rtsp: s.rtsp })
+
+                );
+            });
+
+            dom.rtspList.appendChild(frag);
+            setStatus("Streams encontrados", "ok");
+        } else {
+            setStatus(data.error || "No se encontraron streams", "error");
+        }
+    } catch (e) {
+        console.error(e);
+        setStatus("Error ONVIF", "error");
     }
 }
 
 async function probeOnvifFromNetwork() {
     setStatus("Consultando ONVIF...", "loading");
 
-    const ip = document.getElementById("net_ip").value;
-    const port = parseInt(document.getElementById("net_port").value || "80");
-    const user = document.getElementById("net_user").value;
-    const password = document.getElementById("net_password").value;
+    const ip = document.getElementById("net_ip")?.value;
+    const port = parseInt(document.getElementById("net_port")?.value || "80");
+    const user = document.getElementById("net_user")?.value;
+    const password = document.getElementById("net_password")?.value;
 
     if (!ip || !user || !password) {
         setStatus("Complete IP, usuario y contraseña", "error");
         return;
     }
 
-    const res = await fetch("/camera/onvif-probe", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ ip, port, user, password })
-    });
+    try {
+        const data = await postJSON("/camera/onvif-probe", { ip, port, user, password });
 
-    const data = await res.json();
-    const list = document.getElementById("networkRtspList");
-    list.innerHTML = `<option value="">-- Seleccione un stream --</option>`;
+        const list = document.getElementById("networkRtspList");
+        if (!list) {
+            setStatus("UI no contiene lista de streams", "error");
+            return;
+        }
 
-    if (data.success && data.streams.length > 0) {
-        discoveredStreams = data.streams;
+        list.innerHTML = `<option value="">-- Seleccione un stream --</option>`;
 
-        data.streams.forEach(s => {
-            const opt = document.createElement("option");
-            opt.value = s.rtsp;
-            opt.text = `${s.profile || "Perfil"} - ${s.rtsp}`;
-            list.appendChild(opt);
-        });
+        if (data.success && data.streams?.length) {
+            discoveredStreams = data.streams;
 
-        setStatus("Streams ONVIF encontrados", "ok");
-    } else {
-        setStatus("No se encontraron streams ONVIF", "error");
+            const frag = document.createDocumentFragment();
+
+            data.streams.forEach(s => {
+                frag.appendChild(
+                    buildOption(s.rtsp, `${s.profile || "Perfil"} - ${s.rtsp}`, { rtsp: s.rtsp })
+
+                );
+            });
+
+            list.appendChild(frag);
+            setStatus("Streams ONVIF encontrados", "ok");
+        } else {
+            setStatus("No se encontraron streams ONVIF", "error");
+        }
+    } catch (e) {
+        console.error(e);
+        setStatus("Error consultando ONVIF", "error");
     }
 }
 
@@ -164,82 +210,80 @@ async function probeOnvifFromNetwork() {
 // SELECCIÓN DE STREAM
 // ==================================================
 function selectFromList() {
-    const list = document.getElementById("rtspList");
-    if (!list?.value) return;
+    const list = dom.rtspList;
+    const selected = list.selectedOptions[0];
+    if (!selected) return;
 
-    let rtsp = list.value;
-    const user = userEl().value.trim();
-    const password = passEl().value.trim();
+    let rtsp = selected.dataset.rtsp || selected.value;
 
-    if (!rtsp.includes("@") && user && password) {
-        rtsp = rtsp.replace(
-            /^rtsp:\/\//i,
-            `rtsp://${encodeURIComponent(user)}:${encodeURIComponent(password)}@`
-        );
-    }
+    rtsp = injectCredentials(
+        rtsp,
+        userEl().value.trim(),
+        passEl().value.trim()
+    );
 
     rtspEl().value = rtsp;
+
     setStatus("RTSP seleccionado", "ok");
 }
+
+
 
 function selectNetworkStream() {
     const list = document.getElementById("networkRtspList");
     if (!list?.value) return;
 
-    let rtsp = list.value;
-    const user = document.getElementById("net_user").value.trim();
-    const password = document.getElementById("net_password").value.trim();
+    const selected = list.selectedOptions[0];
+    const baseRtsp = selected?.dataset.rtsp || list.value;
 
-    if (!rtsp.includes("@") && user && password) {
-        rtsp = rtsp.replace(
-            /^rtsp:\/\//i,
-            `rtsp://${encodeURIComponent(user)}:${encodeURIComponent(password)}@`
-        );
-    }
+    const user = document.getElementById("net_user")?.value.trim();
+    const password = document.getElementById("net_password")?.value.trim();
+
+    const rtsp = injectCredentials(baseRtsp, user, password);
 
     rtspEl().value = rtsp;
     setStatus("RTSP listo para probar o activar", "ok");
 }
 
+
 // ==================================================
 // CÁMARA
 // ==================================================
 async function testCamera() {
+    const rtsp = getCleanRTSP();
+
+    if (!rtsp) {
+        setStatus("Ingrese un RTSP", "error");
+        return;
+    }
+
     setStatus("Probando cámara...", "loading");
 
-    const res = await fetch("/camera/test", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ rtsp: rtspEl().value })
-    });
+    try {
+        const data = await postJSON("/camera/test", { rtsp });
 
-    const data = await res.json();
-    setStatus(
-        data.success ? "Cámara responde correctamente" : "Error al conectar",
-        data.success ? "ok" : "error"
-    );
+        if (data.success) {
+            setStatus("Cámara responde correctamente", "ok");
+        } else {
+            setStatus("RTSP inválido o sin acceso", "error");
+        }
+    } catch {
+        setStatus("Error de conexión", "error");
+    }
 }
 
 async function selectCamera() {
-    const rtsp = rtspEl().value.trim();
+    const rtsp = getCleanRTSP();
 
-    // 1️⃣ Validación básica
     if (!rtsp) {
         setStatus("Ingrese una URL RTSP antes de activar", "error");
         return;
     }
 
-
     setStatus("Activando cámara...", "loading");
 
     try {
-        const res = await fetch("/camera/select", {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ rtsp })
-        });
-
-        const data = await res.json();
+        const data = await postJSON("/camera/select", { rtsp });
 
         if (data.success) {
             setStatus("Cámara activada correctamente", "ok");
@@ -248,90 +292,74 @@ async function selectCamera() {
         } else {
             setStatus(data.error || "No se pudo activar la cámara", "error");
         }
-
-    } catch (err) {
-        console.error(err);
-        setStatus("Error de comunicación con el servidor", "error");
+    } catch (e) {
+        console.error(e);
+        setStatus("Error de comunicación", "error");
     }
 }
 
 function selectNetworkCamera() {
-    const list = document.getElementById("networkCameraList");
-    if (!list.value) return;
+    const selected = dom.networkCameraList.selectedOptions[0];
+    if (!selected) return;
 
-    const selected = list.selectedOptions[0];
     const ports = JSON.parse(selected.dataset.ports || "[]");
 
-    // ✅ IP seleccionada
-    const selectedIp = list.value;
-
-    // ✅ Puerto sugerido
-    const selectedPort =
-        ports.includes(80) ? 80 :
-            ports.includes(554) ? 554 :
-                ports[0] || 80;
-
-    // ✅ Asignar a los campos existentes
-    document.getElementById("ip").value = selectedIp;
-    document.getElementById("port").value = selectedPort;
-
-    // Limpiar credenciales
-    document.getElementById("user").value = "";
-    document.getElementById("password").value = "";
+    dom.ip.value = dom.networkCameraList.value;
+    dom.port.value = ports.includes(80) ? 80 : ports.includes(554) ? 554 : ports[0] || 80;
+    dom.user.value = "";
+    dom.password.value = "";
 
     setStatus("Cámara seleccionada, ingrese credenciales", "idle");
 }
+
 
 // ==================================================
 // VIDEO
 // ==================================================
 function iniciarVideo() {
     dom.videoFeed.style.display = "block";
-
     videoActivo = true;
     refrescarVideo();
 }
 
 function refrescarVideo() {
-    if (!videoActivo) return;
-
-    dom.videoFeed.src = "/video?t=" + Date.now();
+    if (videoActivo) {
+        dom.videoFeed.src = "/video?t=" + Date.now();
+    }
 }
+
 
 // ==================================================
 // ESTADO
 // ==================================================
 function setStatus(msg, type = "idle") {
-    dom.cameraStatus.innerText = msg;
+    dom.cameraStatus.textContent = msg;
     dom.cameraStatus.className = `status ${type}`;
 }
 
 async function actualizarEstado() {
     try {
         const res = await fetch("/persona");
-        if (!res.ok) throw new Error("Respuesta no OK");
+        if (!res.ok) return;
 
         const data = await res.json();
 
-        dom.personaReal.innerText = data.persona_detectada ? "Sí" : "No";
-        dom.poseName.innerText = data.pose || "--";
-        dom.visibilityCount.innerText = data.meta?.visibility_count ?? "--";
-        dom.headTilt.innerText = data.meta?.head_tilt ?? "--";
-
-    } catch (e) {
-        console.warn("Error obteniendo estado:", e);
-    }
+        dom.personaReal.textContent = data.persona_detectada ? "Sí" : "No";
+        dom.poseName.textContent = data.pose || "--";
+        dom.visibilityCount.textContent = data.meta?.visibility_count ?? "--";
+        dom.headTilt.textContent = data.meta?.head_tilt ?? "--";
+    } catch { }
 }
 
 function cargarCamaraActual() {
     fetch("/camera/current")
         .then(r => r.json())
         .then(data => {
-            dom.currentCamera.innerText = data.rtsp || "No definida";
-            iniciarVideo(); // activar video solo cuando hay cámara
-        })
-        .catch(e => console.error(e));
+            dom.currentCamera.textContent = data.rtsp || "No definida";
+            iniciarVideo();
+        });
 }
+
 
 // ==================================================
 // ALERTAS
@@ -360,11 +388,5 @@ async function enviarAlertaCorreo_2() {
 // INICIO
 // ==================================================
 resetVideoUI();
-
-//cargarCamaraActual();
-
-// Estado cada 2 segundos
 setInterval(actualizarEstado, 2000);
-
-// Video solo si está activo
 setInterval(refrescarVideo, 1000);

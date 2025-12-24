@@ -9,65 +9,62 @@ class Camara:
         self.buffer_size = buffer_size
         self.lock = threading.Lock()
         self.cap = None
+        self.last_open_try = 0
 
     def _open(self):
-        if not self.fuente:
+        now = time.time()
+
+        # 🛑 no intentar abrir en loop (protege CPU)
+        if now - self.last_open_try < 1.0:
             return False
 
-        cap = cv2.VideoCapture(self.fuente, cv2.CAP_FFMPEG)
-        if not cap.isOpened():
-            cap.release()
-            return False
+        self.last_open_try = now
 
         try:
-            cap.set(cv2.CAP_PROP_BUFFERSIZE, self.buffer_size)
-        except Exception:
-            pass
+            cap = cv2.VideoCapture(self.fuente, cv2.CAP_FFMPEG)
+            if not cap.isOpened():
+                cap.release()
+                return False
 
-        self.cap = cap
-        return True
+            try:
+                cap.set(cv2.CAP_PROP_BUFFERSIZE, self.buffer_size)
+            except:
+                pass
+
+            self.cap = cap
+            return True
+
+        except:
+            return False
 
     def obtener_frame(self):
         with self.lock:
 
-            # 🚫 No hay fuente → no intentar abrir
             if not self.fuente:
                 return None
 
-            # 🔓 Abrir solo si es necesario
+            # 🔄 Abrir si no existe
             if self.cap is None:
                 if not self._open():
                     return None
 
             ret, frame = self.cap.read()
 
-            # 🔄 Error de lectura → forzar reapertura
-            if not ret:
+            # 💥 RTSP muerto → destruir socket
+            if not ret or frame is None:
                 self._close()
                 return None
 
             return frame
 
-    def actualizar_fuente(self, nueva_fuente):
-        """
-        Cambia RTSP en caliente sin reiniciar el sistema
-        """
-        with self.lock:
-            self._close()
-            self.fuente = nueva_fuente
-
     def _close(self):
-        if self.cap is not None:
-            try:
+        try:
+            if self.cap:
                 self.cap.release()
-            except Exception:
-                pass
-            self.cap = None
+        except:
+            pass
+        self.cap = None
 
     def liberar(self):
-        """
-        Alias seguro
-        """
         with self.lock:
             self._close()
-            
