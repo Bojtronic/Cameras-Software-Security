@@ -1,5 +1,6 @@
 from fastapi import APIRouter
 from services.alert_service import send_email_alert_1, send_whatsapp_alert_1, send_email_alert_2, send_whatsapp_alert_2
+from services import state
 
 router = APIRouter(prefix="/alerts", tags=["Alerts"])
 
@@ -36,11 +37,23 @@ def send_alert_whatsapp_2():
 @router.post("/sendEmail1")
 def send_alert_email_1():
     try:
-        send_email_alert_1()
+        # Obtener último frame con lock
+        with state.frame_lock:
+            frame = state.current_frame
+
+        if frame is None:
+            return {
+                "success": False,
+                "error": "No hay frame disponible todavía"
+            }
+
+        send_email_alert_1(frame)
+
         return {
             "success": True,
             "provider": "smtp-gmail"
         }
+
     except Exception as e:
         return {
             "success": False,

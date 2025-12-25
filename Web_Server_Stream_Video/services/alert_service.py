@@ -6,38 +6,41 @@ from datetime import datetime
 from dotenv import load_dotenv
 from datetime import datetime
 import urllib.parse
+import cv2
 
 load_dotenv()
 
+def frame_to_jpeg_bytes(frame, quality=85):
+    encode_params = [int(cv2.IMWRITE_JPEG_QUALITY), quality]
+    success, buffer = cv2.imencode(".jpg", frame, encode_params)
 
-def send_email_alert_1():
+    if not success:
+        raise Exception("No se pudo codificar la imagen")
+
+    return buffer.tobytes()
+
+def send_email_alert_1(frame):
+    img_bytes = frame_to_jpeg_bytes(frame)
+
     msg = EmailMessage()
-    #msg["From"] = os.getenv("EMAIL_USER")
-    #msg["To"] = os.getenv("EMAIL_TO")
     msg["From"] = "sstestmail2026@gmail.com"
     msg["To"] = "duendenener@gmail.com"
     msg["Subject"] = "🚨 Alerta del Sistema de Monitoreo IA"
 
-    body = f"""
-ALERTA DEL SISTEMA DE MONITOREO IA
+    msg.set_content(
+        f"Evento detectado\nFecha: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}"
+    )
 
-Evento detectado automáticamente.
-Fecha: {datetime.now().strftime("%Y-%m-%d %H:%M:%S")}
-"""
-    msg.set_content(body)
+    msg.add_attachment(
+        img_bytes,
+        maintype="image",
+        subtype="jpeg",
+        filename="alerta.jpg"
+    )
 
-    try:
-        with smtplib.SMTP_SSL("smtp.gmail.com", 465) as smtp:
-            smtp.login(
-                #os.getenv("EMAIL_USER"),
-                #os.getenv("EMAIL_PASS")
-                "sstestmail2026@gmail.com",
-                "wlop zwla kudi xajx"
-            )
-            smtp.send_message(msg)
-    except Exception as e:
-        raise Exception(f"Email error: {str(e)}")
-
+    with smtplib.SMTP_SSL("smtp.gmail.com", 465) as smtp:
+        smtp.login("sstestmail2026@gmail.com", "wlop zwla kudi xajx")
+        smtp.send_message(msg)
 
 
 def send_email_alert_2():
