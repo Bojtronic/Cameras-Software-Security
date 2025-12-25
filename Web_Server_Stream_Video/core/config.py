@@ -80,7 +80,7 @@ SMOOTH_SEGMENTATION = False
 #   0.3 → muy permisivo (entornos difíciles)
 #   0.4 – 0.5 → balanceado (RECOMENDADO)
 #   0.6+ → muy estricto
-VIS_THRESH = 0.4
+VIS_THRESH = 0.3
 
 
 # Número mínimo de landmarks visibles para considerar
@@ -101,7 +101,7 @@ MIN_LANDMARKS = 4
 # Ajustar según resolución:
 #   - 720p: 20–30 px
 #   - 1080p: 30–50 px
-HOMBROS_MIN_PX = 30
+HOMBROS_MIN_PX = 20
 
 
 # Ancho máximo de hombros en píxeles.
@@ -122,7 +122,7 @@ DIBUJAR = True
 # Evita clasificar:
 #   - Fragmentos
 #   - Personas demasiado lejos
-MIN_BODY_HEIGHT = 0.18
+MIN_BODY_HEIGHT = 0.08
 
 
 # Relación ancho / alto a partir de la cual
@@ -132,7 +132,7 @@ MIN_BODY_HEIGHT = 0.18
 #   0.8 → sensible
 #   0.9 → balanceado (RECOMENDADO)
 #   1.1 → muy estricto
-ASPECT_RATIO_LYING = 1.2
+ASPECT_RATIO_LYING = 0.9
 
 
 # Ángulo máximo (en grados) respecto a la vertical
@@ -140,7 +140,7 @@ ASPECT_RATIO_LYING = 1.2
 #
 # 0° = totalmente vertical
 # 90° = totalmente horizontal
-MAX_ANGLE_STANDING = 45
+MAX_ANGLE_STANDING = 999
 
 
 # Ángulo mínimo desde la vertical para considerar
@@ -155,7 +155,7 @@ MIN_ANGLE_LYING = 999
 # para considerar postura vertical válida.
 #
 # Evita confundir personas inclinadas con acostadas.
-HEAD_TILT_MIN_STANDING = 0.08
+HEAD_TILT_MIN_STANDING = 0.04
 
 
 # Centro de masa máximo (eje Y normalizado)
@@ -163,13 +163,32 @@ HEAD_TILT_MIN_STANDING = 0.08
 #
 # Valores bajos → persona erguida
 # Valores altos → persona más baja en la imagen
-COM_Y_STANDING_MAX = 0.65
+COM_Y_STANDING_MAX = 0.70
 
 
 # Límite superior del centro de masa para persona sentada.
 # Por encima de este valor se considera pose no válida
 # o acostada.
-COM_Y_SITTING_MAX = 0.85
+COM_Y_SITTING_MAX = 0.90
+
+
+# equivalente a aspect_ratio_lying
+TORSO_EXPAND_MIN_LYING = 0.9
+
+
+TORSO_SPREAD_LYING = 0.10
+
+BODY_LINE_ANGLE = 150
+
+# centro de masa bajo = cuerpo en el suelo
+COM_Y_LYING_MIN = 0.60
+
+# debajo de esto es sentado
+KNEE_ANGLE_SITTING_MAX = 120
+
+# encima de esto es de pie
+KNEE_ANGLE_STANDING_MIN = 150
+
 
     
 
@@ -214,10 +233,9 @@ ENABLE_ONVIF = False
 
 
 POSE_COLORS = {
-    "de_pie": (0, 255, 0),        # Verde
+    "de pie": (0, 255, 0),        # Verde
     "sentado": (0, 200, 255),    # Amarillo azulado
-    "acostado": (255, 200, 0),   # Naranja
-    "caido": (0, 0, 255),        # Rojo
+    "acostado": (0, 0, 255),   # Rojo
     "desconocido": (200, 200, 200)  # Gris
 }
 

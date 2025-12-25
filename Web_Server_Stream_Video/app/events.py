@@ -41,7 +41,6 @@ async def lifespan(app):
         model_complexity=config.MODEL_COMPLEXITY,
         enable_segmentation=config.ENABLE_SEGMENTATION,
         smooth_landmarks=config.SMOOTH_LANDMARKS,
-        dibujar=config.DIBUJAR,
 
         min_body_height=config.MIN_BODY_HEIGHT,
         aspect_ratio_lying=config.ASPECT_RATIO_LYING,
@@ -49,7 +48,16 @@ async def lifespan(app):
         min_angle_lying=config.MIN_ANGLE_LYING,
         head_tilt_min_standing=config.HEAD_TILT_MIN_STANDING,
         com_y_standing_max=config.COM_Y_STANDING_MAX,
-        com_y_sitting_max=config.COM_Y_SITTING_MAX
+        com_y_sitting_max=config.COM_Y_SITTING_MAX,
+        
+        torso_expand_min_lying = config.COM_Y_SITTING_MAX,
+        com_y_lying_min = config.TORSO_EXPAND_MIN_LYING,
+        knee_angle_sitting_max = config.KNEE_ANGLE_SITTING_MAX,
+        knee_angle_standing_min = config.KNEE_ANGLE_STANDING_MIN,
+        
+        torso_spread_lying = config.TORSO_SPREAD_LYING,
+        body_line_angle = config.BODY_LINE_ANGLE
+        
     )
 
     presence = PersonPresenceController(
@@ -64,14 +72,6 @@ async def lifespan(app):
     state.detector = detector
     state.presence = presence
     state.camera_change_event = threading.Event()
-
-    # =========================
-    # VARIABLES DE CAÍDA
-    # =========================
-    prev_pose = None
-    prev_pose_ts = None
-    confirmar_caida_frames = 0
-    CAIDA_CONFIRMADA = False
 
     # =========================
     # Función para bajar la resolución de la imagen a analizar con IA
@@ -169,8 +169,6 @@ async def lifespan(app):
             time.sleep(active_sleep)
 
     def analysis_loop():
-        nonlocal prev_pose, prev_pose_ts, confirmar_caida_frames, CAIDA_CONFIRMADA
-
         idle_sleep = 0.005
         last_processed_ts = None
 
@@ -245,39 +243,9 @@ async def lifespan(app):
             persona_real = presence.update(present)
 
             pose_name = "desconocido"
-            draw_needed = True
 
             if persona_real and present:
                 pose_name = detector.clasificar_pose(result)
-                caida_detectada = False
-
-                if prev_pose and prev_pose_ts:
-                    if (
-                        prev_pose in ("de_pie", "sentado")
-                        and pose_name == "acostado"
-                        and (now - prev_pose_ts) < 1.2
-                    ):
-                        caida_detectada = True
-
-                confirmar_caida_frames = (
-                    confirmar_caida_frames + 1 if caida_detectada else 0
-                )
-
-                CAIDA_CONFIRMADA = confirmar_caida_frames >= 3
-
-                if pose_name != "desconocido" and not CAIDA_CONFIRMADA:
-                    prev_pose = pose_name
-                    prev_pose_ts = now
-
-            else:
-                with state.caida_lock:
-                    state.caida_activa = False
-                    state.caida_ts = None
-
-                prev_pose = None
-                prev_pose_ts = None
-                confirmar_caida_frames = 0
-                CAIDA_CONFIRMADA = False
 
             # =========================
             # DIBUJO (COPIA FINAL)
@@ -285,7 +253,7 @@ async def lifespan(app):
             frame_out = frame.copy()
 
             if persona_real and present:
-                if result.get("landmarks") is not None:
+                if config.DIBUJAR and result.get("landmarks") is not None:
                     draw_pose_on_frame(frame_out, result["landmarks"])
 
                 color = get_pose_color(pose_name)
@@ -300,21 +268,6 @@ async def lifespan(app):
                     3
                 )
 
-                if CAIDA_CONFIRMADA:
-                    with state.caida_lock:
-                        if not state.caida_activa:
-                            state.caida_activa = True
-                            state.caida_ts = now
-
-                    cv2.putText(
-                        frame_out,
-                        "!!! CAIDA DETECTADA !!!",
-                        (20, 100),
-                        cv2.FONT_HERSHEY_SIMPLEX,
-                        1.3,
-                        (0, 0, 255),
-                        4
-                    )
             else:
                 cv2.putText(
                     frame_out,
@@ -336,7 +289,6 @@ async def lifespan(app):
                     "persona_real": persona_real,
                     "present": present,
                     "pose": pose_name,
-                    "caida": CAIDA_CONFIRMADA,
                     "visibility_count": result.get("visibility_count"),
                     "body_height": result.get("body_height"),
                     "aspect_ratio": result.get("aspect_ratio"),
@@ -385,7 +337,7 @@ async def lifespan(app):
                 with state.cam_lock:
                     if state.cam:
                         state.cam.liberar()
-                        state.cam = None   # 🔥 CLAVE: limpiar referencia
+                        state.cam = None   # limpiar referencia
 
                 # 🔁 Reapertura controlada
                 state.camera_change_event.set()
