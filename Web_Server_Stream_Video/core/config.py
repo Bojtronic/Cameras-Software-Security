@@ -1,247 +1,274 @@
-#RTSP_URL = "rtsp://admin:TIss9831@192.168.18.14:554/"
-#RTSP_URL = "rtsp://admin:TIss9831@192.168.18.14:554/cam/realmonitor?channel=1&subtype=0"
-#RTSP_URL = "rtsp://admin:TIss9831@192.168.18.14:554/cam/realmonitor?channel=1&subtype=1"
+# ============================================================
+#                MediaPipe Pose – CONFIGURACIÓN
+#        para cámaras cenitales (desde techo)
+# ============================================================
 
 
-# ==========================
-# MediaPipe Pose – Config
-# ==========================
-
-# Confianza mínima para detección inicial de la persona.
-# Se usa cuando MediaPipe intenta detectar una pose desde cero.
-# Valores más altos:
-#   - Menos falsos positivos
-#   - Más riesgo de perder detecciones lejanas o parciales
-# Valores recomendados:
-#   - Cámaras cercanas / buena iluminación: 0.6 – 0.7
-#   - Cámaras lejanas / ángulo alto: 0.4 – 0.5
+# ------------------------------------------------------------
+# CONFIANZA DE DETECCIÓN INICIAL
+# ------------------------------------------------------------
+# Probabilidad mínima para que MediaPipe acepte que
+# una figura humana ha sido detectada en un frame.
+#
+# Controla cuántos "fantasmas" acepta el modelo.
+#
+# Valores bajos (0.3–0.4):
+#   - Detecta personas muy pequeñas o lejanas
+#   - Aumentan sombras y falsos positivos
+#
+# Valores altos (0.6–0.8):
+#   - Solo personas claras
+#   - Puede perder personas en el suelo o parcialmente visibles
+#
 DETECTION_CONF = 0.5
 
 
-# Confianza mínima para el tracking entre frames consecutivos.
-# Una vez detectada la pose, este valor controla si se sigue
-# reutilizando la detección anterior.
-# Valores más bajos:
-#   - Tracking más estable
-#   - Puede mantener errores por más tiempo
-# Valores más altos:
-#   - Más reinicios del modelo
-#   - Más consumo de CPU
+# ------------------------------------------------------------
+# CONFIANZA DE TRACKING TEMPORAL
+# ------------------------------------------------------------
+# Controla si MediaPipe sigue una detección previa
+# o fuerza una nueva detección.
+#
+# Bajo → tracking estable (pero puede arrastrar errores)
+# Alto → más reinicios (más CPU)
+#
 TRACKING_CONF = 0.4
 
 
-# Complejidad del modelo de MediaPipe Pose:
-# 0 = Muy rápido, menos preciso (ideal para hardware limitado)
-# 1 = Balance entre velocidad y precisión (RECOMENDADO)
-# 2 = Más preciso, mayor uso de CPU/GPU
+# ------------------------------------------------------------
+# COMPLEJIDAD DEL MODELO DE POSE
+# ------------------------------------------------------------
+# 0 → Rápido, menos precisión
+# 1 → Balanceado (RECOMENDADO)
+# 2 → Muy preciso, más lento
 #
-# Recomendación:
-#   - CCTV / múltiples cámaras: 0 o 1
-#   - Análisis crítico / una sola cámara: 2
 MODEL_COMPLEXITY = 1
 
 
-# Modo imagen estática:
-# True  → cada frame se procesa como imagen independiente
-# False → se usa tracking temporal (OBLIGATORIO para video)
+# ------------------------------------------------------------
+# MODO DE PROCESAMIENTO
+# ------------------------------------------------------------
+# False = usa tracking temporal (OBLIGATORIO en video)
+# True  = cada frame es independiente (solo para fotos)
 #
-# ⚠️ Nunca usar True en streams de video
 STATIC_IMAGE_MODE = False
 
 
-# Suavizado temporal de landmarks.
-# Reduce vibraciones y ruido frame a frame.
-# Aumenta ligeramente la latencia pero mejora estabilidad.
+# ------------------------------------------------------------
+# SUAVIZADO DE LANDMARKS
+# ------------------------------------------------------------
+# Reduce vibraciones del esqueleto entre frames.
+# Aumenta latencia ~1–2 frames.
 #
-# Recomendado:
-#   - True en entornos reales
-#   - False solo si se necesita respuesta ultra rápida
 SMOOTH_LANDMARKS = False
 
 
-# Activa segmentación corporal (máscara de la persona).
-# MUY costoso en CPU/GPU.
+# ------------------------------------------------------------
+# SEGMENTACIÓN CORPORAL
+# ------------------------------------------------------------
+# Genera una máscara binaria del cuerpo.
+# MUY costoso → solo activar si es necesario.
 #
-# Solo usar si:
-#   - Necesitas separar persona del fondo
-#   - O hacer análisis visual avanzado
 ENABLE_SEGMENTATION = False
-
-
-# Suavizado de la máscara de segmentación.
-# Solo tiene efecto si ENABLE_SEGMENTATION = True
 SMOOTH_SEGMENTATION = False
 
 
-# Umbral mínimo de visibilidad para que un landmark sea considerado válido.
-# Cada landmark tiene visibility ∈ [0,1]
+# ------------------------------------------------------------
+# VISIBILIDAD DE LANDMARKS
+# ------------------------------------------------------------
+# Cada punto tiene confidence ∈ [0,1]
+# Este umbral define cuándo se considera confiable.
 #
-# Valores típicos:
-#   0.3 → muy permisivo (entornos difíciles)
-#   0.4 – 0.5 → balanceado (RECOMENDADO)
-#   0.6+ → muy estricto
-VIS_THRESH = 0.3
+# 0.3 → muy permisivo
+# 0.4–0.5 → ideal
+# 0.6+ → muy estricto
+#
+VIS_THRESH = 0.4
 
 
-# Número mínimo de landmarks visibles para considerar
-# que hay una persona real en el frame.
+# ------------------------------------------------------------
+# LANDMARKS MÍNIMOS
+# ------------------------------------------------------------
+# Cantidad mínima de puntos visibles para
+# aceptar que hay una persona real.
 #
-# Valores bajos:
-#   - Detecta personas parciales
-#   - Más falsos positivos
-# Valores altos:
-#   - Más robusto
-#   - Puede perder personas sentadas o parcialmente ocultas
+# Bajo → detecta fragmentos
+# Alto → puede perder personas sentadas o caídas
+#
 MIN_LANDMARKS = 4
 
 
-# Ancho mínimo de hombros en píxeles.
-# Filtra detecciones muy pequeñas (ruido o personas muy lejanas).
+# ------------------------------------------------------------
+# FILTRO DE TAMAÑO HUMANO
+# ------------------------------------------------------------
+# Distancia mínima entre hombros en píxeles.
+# Evita detectar manchas pequeñas.
 #
-# Ajustar según resolución:
-#   - 720p: 20–30 px
-#   - 1080p: 30–50 px
 HOMBROS_MIN_PX = 20
 
-
-# Ancho máximo de hombros en píxeles.
-# Evita falsas detecciones cuando la persona está
-# extremadamente cerca de la cámara.
+# Evita detectar "gigantes" (errores cuando la cámara
+# está muy cerca o se detectan dos personas como una).
+#
 HOMBROS_MAX_PX = 600
 
 
-# Dibuja landmarks y conexiones sobre el frame.
-# Usar solo para debug o calibración.
-# Desactivar en producción para ahorrar CPU.
+# ------------------------------------------------------------
+# VISUALIZACIÓN
+# ------------------------------------------------------------
+# Dibujar esqueleto sobre la imagen
+# Usar solo para calibración
+#
 DIBUJAR = True
 
 
-# Altura corporal mínima normalizada (0–1).
-# Se calcula como distancia nariz–rodillas.
+# ------------------------------------------------------------
+# ALTURA CORPORAL NORMALIZADA
+# ------------------------------------------------------------
+# Distancia nariz → rodillas
+# Representa el "tamaño real" de la persona en la imagen.
 #
-# Evita clasificar:
-#   - Fragmentos
-#   - Personas demasiado lejos
-MIN_BODY_HEIGHT = 0.08
+# Filtra:
+#   - sombras
+#   - mascotas
+#   - objetos
+#
+MIN_BODY_HEIGHT = 0.10
 
 
-# Relación ancho / alto a partir de la cual
-# se considera que la persona está acostada.
+# ------------------------------------------------------------
+# RELACIÓN ANCHO / ALTO
+# ------------------------------------------------------------
+# Cuánto espacio horizontal ocupa el cuerpo
 #
-# Valores típicos:
-#   0.8 → sensible
-#   0.9 → balanceado (RECOMENDADO)
-#   1.1 → muy estricto
+# De pie: bajo
+# Acostado: alto
+#
 ASPECT_RATIO_LYING = 0.9
 
 
-# Ángulo máximo (en grados) respecto a la vertical
-# para considerar que la persona está de pie o sentada.
-#
-# 0° = totalmente vertical
-# 90° = totalmente horizontal
+# ------------------------------------------------------------
+# ANGULOS (NO USADOS EN CENITAL, SE DEJAN POR COMPATIBILIDAD)
+# ------------------------------------------------------------
 MAX_ANGLE_STANDING = 999
-
-
-# Ángulo mínimo desde la vertical para considerar
-# que la persona está acostada.
-#
-# Más bajo → más sensible
-# Más alto → más estricto
 MIN_ANGLE_LYING = 999
 
 
-# Diferencia mínima entre cadera y cabeza (normalizada)
-# para considerar postura vertical válida.
+# ------------------------------------------------------------
+# DIFERENCIA CABEZA ↔ CADERA
+# ------------------------------------------------------------
+# Evita confundir personas dobladas con acostadas
 #
-# Evita confundir personas inclinadas con acostadas.
-HEAD_TILT_MIN_STANDING = 0.04
+HEAD_TILT_MIN_STANDING = 0.10
 
 
-# Centro de masa máximo (eje Y normalizado)
-# para considerar persona de pie.
+# ------------------------------------------------------------
+# CENTRO DE MASA (EJE Y)
+# ------------------------------------------------------------
+# Valores bajos → persona más arriba
+# Valores altos → persona más cerca del piso
 #
-# Valores bajos → persona erguida
-# Valores altos → persona más baja en la imagen
 COM_Y_STANDING_MAX = 0.70
-
-
-# Límite superior del centro de masa para persona sentada.
-# Por encima de este valor se considera pose no válida
-# o acostada.
 COM_Y_SITTING_MAX = 0.90
-
-
-# equivalente a aspect_ratio_lying
-TORSO_EXPAND_MIN_LYING = 0.9
-
-
-TORSO_SPREAD_LYING = 0.10
-
-BODY_LINE_ANGLE = 150
-
-# centro de masa bajo = cuerpo en el suelo
 COM_Y_LYING_MIN = 0.60
 
-# debajo de esto es sentado
-KNEE_ANGLE_SITTING_MAX = 120
 
-# encima de esto es de pie
+# ------------------------------------------------------------
+# EXPANSIÓN DEL TORSO
+# ------------------------------------------------------------
+# Distancia hombros ↔ caderas
+# Es la PROYECCIÓN del cuerpo en el suelo.
+#
+# De pie → pequeño
+# Sentado → medio
+# Acostado → grande
+#
+TORSO_EXPAND_MIN_LYING = 0.6
+TORSO_SPREAD_LYING = 0.10
+
+
+# ------------------------------------------------------------
+# ALINEACIÓN CORPORAL
+# ------------------------------------------------------------
+# Cuánto se alinean hombros–caderas–pies
+# Alto → cuerpo estirado
+#
+BODY_LINE_ANGLE = 150
+
+
+# ------------------------------------------------------------
+# ÁNGULOS DE RODILLA
+# ------------------------------------------------------------
+# Sentado → rodillas dobladas
+# De pie → rodillas casi rectas
+#
+KNEE_ANGLE_SITTING_MAX = 140
 KNEE_ANGLE_STANDING_MIN = 150
 
 
-    
-
-# Tamaño del buffer de la cámara.
-# 1 = mínima latencia (RECOMENDADO)
-# >1 = más estabilidad, más retraso
+# ------------------------------------------------------------
+# CÁMARA
+# ------------------------------------------------------------
 CAP_BUFFERSIZE = 1
 
 
+# ------------------------------------------------------------
+# RESOLUCIÓN DE IA
+# ------------------------------------------------------------
+# Tamaño al que se redimensiona el frame antes de IA
+# Mejora velocidad sin perder estructura corporal
+#
+AI_MAX_WIDTH = 640
+AI_MAX_HEIGHT = 640
 
-AI_MAX_WIDTH = 640     # tamaño apropiado para el procesamiento de IA, buen balance
-AI_MAX_HEIGHT = 640    # opcional, se usa width como referencia
 
-
-
-CAMERA_TIMEOUT = 5.0          # segundos sin frame = caída
+# ------------------------------------------------------------
+# TIMEOUTS DE CÁMARA
+# ------------------------------------------------------------
+CAMERA_TIMEOUT = 5.0
 CAMERA_RECONNECT_COOLDOWN = 5.0
 MAX_RECONNECT_ATTEMPTS = 5
 
 
-# FPS dinámico
+# ------------------------------------------------------------
+# FPS DINÁMICO
+# ------------------------------------------------------------
 AI_FPS_MIN = 2.0
 AI_FPS_MAX = 12.0
 
-AI_TARGET_INFERENCE = 0.08   # segundos (80 ms)
-AI_SMOOTHING = 0.9           # EMA
+# Tiempo objetivo por frame de IA
+AI_TARGET_INFERENCE = 0.08   # 80 ms
+
+# Suavizado EMA del FPS
+AI_SMOOTHING = 0.9
 
 
-
-# Frames consecutivos necesarios para confirmar presencia.
-# Evita falsos positivos intermitentes.
+# ------------------------------------------------------------
+# FILTRO TEMPORAL DE PRESENCIA
+# ------------------------------------------------------------
 FRAMES_ON = 5
-
-
-# Frames consecutivos sin detección para confirmar ausencia.
 FRAMES_OFF = 5
 
 
-# Habilita control ONVIF (PTZ, etc.)
-# Solo si el hardware lo soporta.
+# ------------------------------------------------------------
+# CONTROL DE CÁMARA PTZ
+# ------------------------------------------------------------
 ENABLE_ONVIF = False
 
 
+# ------------------------------------------------------------
+# COLORES DE ESTADO
+# ------------------------------------------------------------
 POSE_COLORS = {
-    "de pie": (0, 255, 0),        # Verde
-    "sentado": (0, 200, 255),    # Amarillo azulado
-    "acostado": (0, 0, 255),   # Rojo
-    "desconocido": (200, 200, 200)  # Gris
+    "de pie": (0, 255, 0),
+    "sentado": (0, 200, 255),
+    "acostado": (0, 0, 255),
+    "desconocido": (200, 200, 200)
 }
 
-# Host/port defaults para desarrollo
+
+# ------------------------------------------------------------
+# RED
+# ------------------------------------------------------------
 HOST = "0.0.0.0"
 PORT = 8010
-
-# IP para mostrar en consola (opcional)
 ADVERTISE_IP = "127.0.0.1"

@@ -80,35 +80,66 @@ class PersonDetector:
     # MÉTODO PRINCIPAL: analiza un frame
     # ---------------------------------------------------------------------
     def analyze(self, frame):
+        # =========================================================
+        # 1️⃣ PREPROCESAMIENTO DE IMAGEN
+        # =========================================================
+        # MediaPipe trabaja en RGB, OpenCV usa BGR,
+        # por eso convertimos el espacio de color.
         h, w = frame.shape[:2]
         rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
+
+        # Ejecuta el modelo de pose
         results = self.pose.process(rgb)
 
+        # Si MediaPipe no detecta un esqueleto, no hay persona
         if not results.pose_landmarks:
             return {"present": False, "landmarks": None}
 
+        # Acceso rápido a la lista de landmarks
         lm = results.pose_landmarks.landmark
 
-        # ============================
-        # Rodillas
-        # ============================
+        # =========================================================
+        # 2️⃣ ÁNGULOS DE RODILLAS (flexión de piernas)
+        # =========================================================
+        # Se calcula el ángulo geométrico:
+        #   cadera → rodilla → tobillo
+        #
+        # Matemáticamente:
+        #   cos(θ) = (BA · BC) / (|BA| |BC|)
+        #
+        # Físicamente:
+        #   180° = pierna recta
+        #    90° = pierna doblada (sentado)
+        #
+        # Desde cámara cenital es ruidoso, se usa como apoyo.
         left_knee_angle = self.angle(lm[23], lm[25], lm[27])
         right_knee_angle = self.angle(lm[24], lm[26], lm[28])
         knee_angle = (left_knee_angle + right_knee_angle) / 2
 
-        # ============================
-        # Línea corporal (colinealidad)
-        # ============================
+        # =========================================================
+        # 3️⃣ LÍNEA CORPORAL (colinealidad)
+        # =========================================================
+        # Se mide si hombro, cadera y pie están alineados.
+        # Si el cuerpo está estirado → ángulo cercano a 180°
+        # Si está doblado → ángulo menor.
         left_body_line = self.angle(lm[11], lm[23], lm[27])
         right_body_line = self.angle(lm[12], lm[24], lm[28])
         body_line_angle = (left_body_line + right_body_line) / 2
 
-        # ============================
-        # Visibilidad
-        # ============================
+        # =========================================================
+        # 4️⃣ VISIBILIDAD GLOBAL
+        # =========================================================
+        # MediaPipe asigna a cada punto una visibilidad ∈ [0,1]
+        # Contamos cuántos landmarks superan el umbral
+        # para saber si la persona es real y completa.
         vis_count = sum(p.visibility >= self.vis_thresh for p in lm)
         present = vis_count >= self.min_visible_landmarks
 
+        # =========================================================
+        # 5️⃣ LANDMARKS CLAVE
+        # =========================================================
+        # Extraemos las partes estructurales del cuerpo
+        # que se usan para geometría y proyecciones físicas.
         try:
             nose = lm[self.LM.NOSE]
             ls = lm[self.LM.LEFT_SHOULDER]
@@ -120,56 +151,101 @@ class PersonDetector:
         except:
             return {"present": False, "landmarks": None}
 
-        # ============================
-        # Geometría
-        # ============================
+        # =========================================================
+        # 6️⃣ GEOMETRÍA DEL CUERPO
+        # =========================================================
+
+        # Distancia real entre hombros en píxeles:
+        # se usa como filtro de tamaño humano
         shoulder_px = abs(int((rs.x - ls.x) * w))
+
+        # Ancho de caderas en coordenadas normalizadas
         hip_width = abs(lhip.x - rhip.x)
 
+        # Promedios verticales de hombros, caderas y rodillas
         shoulder_y = (ls.y + rs.y) / 2
         hip_y = (lhip.y + rhip.y) / 2
         knee_y = (lk.y + rk.y) / 2
         nose_y = nose.y
 
+        # Altura corporal proyectada:
+        # nariz → rodillas
+        # Desde arriba, esta altura cae cuando alguien se acuesta.
         body_height = abs(knee_y - nose_y)
 
+        # =========================================================
+        # 7️⃣ ASPECT RATIO (ancho / alto)
+        # =========================================================
+        # Se calcula como:
+        #
+        #   ancho del cuerpo (hombros)
+        #   --------------------------
+        #   altura del cuerpo (nariz→rodillas)
+        #
+        # Físicamente:
+        #   - De pie → valor bajo (alto > ancho)
+        #   - Acostado → valor alto (ancho ≈ alto)
+        #
         aspect_ratio = abs(ls.x - rs.x) / max(body_height, 1e-6)
 
-        # ============================
-        # Centro de masa
-        # ============================
+        # =========================================================
+        # 8️⃣ CENTRO DE MASA
+        # =========================================================
+        # Aproximación del centro del cuerpo
+        # promediando cabeza, hombros y caderas.
+        #
+        # Desde cámara cenital:
+        #   - persona de pie → masa arriba
+        #   - persona acostada → masa baja
+        #
         center_of_mass_y = (nose_y + shoulder_y + hip_y) / 3
 
-        # ============================
-        # Ángulo del torso
-        # ============================
+        # =========================================================
+        # 9️⃣ ORIENTACIÓN DEL TORSO
+        # =========================================================
+        # Vector desde caderas → nariz
+        # indica la orientación principal del cuerpo.
         cx = ((lhip.x + rhip.x) / 2) * w
         cy = ((lhip.y + rhip.y) / 2) * h
         nx = nose.x * w
         ny = nose.y * h
 
         angle_torso_deg = math.degrees(math.atan2(ny - cy, nx - cx))
+
+        # Distancia angular respecto a la vertical
+        # (más útil en cámaras laterales que cenitales)
         angle_from_vertical = abs(90 - abs(angle_torso_deg))
 
+        # Diferencia vertical cabeza ↔ caderas
+        # grande = cuerpo vertical
+        # pequeño = cuerpo horizontal
         head_tilt = hip_y - nose_y
 
-        # ============================
-        # 🔥 MÉTRICA CLAVE PARA ACOSTADO
-        # ============================
-        # Centro de hombros
+        # =========================================================
+        # 10️⃣ TORSO SPREAD (MÉTRICA MÁS IMPORTANTE)
+        # =========================================================
+        # Proyección real del cuerpo sobre el suelo.
+        # Distancia entre:
+        #   centro de hombros ↔ centro de caderas
+        #
+        # De pie → pequeño
+        # Sentado → medio
+        # Acostado → grande
+        #
         sx = (ls.x + rs.x) / 2
         sy = (ls.y + rs.y) / 2
 
-        # Centro de caderas
         hx = (lhip.x + rhip.x) / 2
         hy = (lhip.y + rhip.y) / 2
 
-        # Distancia normalizada hombros ↔ caderas
+        # Distancia euclidiana en el plano de la imagen
         torso_spread = math.hypot(sx - hx, sy - hy)
 
-        # ============================
-        # Resultado
-        # ============================
+        # =========================================================
+        # 11️⃣ SALIDA
+        # =========================================================
+        # Se devuelven todas las métricas físicas
+        # para clasificación y depuración.
         return {
             "present": present,
             "visibility_count": vis_count,
@@ -189,81 +265,142 @@ class PersonDetector:
             "center_of_mass_y": center_of_mass_y,
             "landmarks": results.pose_landmarks
         }
-        
     
     # ---------------------------------------------------------------------
     # CLASIFICACIÓN DE POSE
     # ---------------------------------------------------------------------
     def clasificar_pose(self, data):
 
+        # ==========================================================
+        # 0️⃣ VALIDACIÓN
+        # ==========================================================
+        # Si MediaPipe no detecta una persona válida, no se clasifica.
         if not data or not data.get("present", False):
             return "desconocido"
 
-        h = data["body_height"]
-        ar = data["aspect_ratio"]              # ancho total / alto
-        com = data["center_of_mass_y"]         # centro de masa vertical
-        knee = data.get("knee_angle", 180)     # ángulo medio de rodillas
-        spread = data["torso_spread"]          # hombros ↔ caderas
-        body_line = data["body_line_angle"]    # colinealidad hombros-cadera-pies
-        angle_from_vertical = data["angle_from_vertical"]
+        # ==========================================================
+        # 1️⃣ VARIABLES FÍSICAS EXTRAÍDAS DE LA IMAGEN
+        # ==========================================================
+        # Estas variables describen la geometría del cuerpo
+        # proyectado en la cámara oblicua (vista desde esquina).
+        #
+        h         = data["body_height"]        # tamaño vertical del cuerpo (normalizado)
+        ar        = data["aspect_ratio"]       # ancho del cuerpo / altura proyectada
+        spread    = data["torso_spread"]       # separación hombros ↔ caderas
+        knee      = data["knee_angle"]         # ángulo de rodillas
+        body_line = data["body_line_angle"]   # alineación hombro → cadera → rodilla
+        head_tilt = data["head_tilt"]          # diferencia vertical cabeza ↔ caderas
 
-        # ----------------------------
-        # Filtro mínimo de tamaño
-        # ----------------------------
+        # ==========================================================
+        # 2️⃣ FILTRO DE RUIDO
+        # ==========================================================
+        # Si el cuerpo es muy pequeño, probablemente no es una persona válida
         if h < self.min_body_height:
             return "desconocido"
 
-        # =====================================================
-        # 1️⃣ ACOSTADO (MÁXIMA PRIORIDAD)
-        # =====================================================
-        # La persona puede estar:
-        #   - de lado
-        #   - boca arriba
-        #   - boca abajo
-        #   - con piernas dobladas
-        #
-        # Por eso usamos:
-        #   - aspect_ratio (ocupa ancho)
-        #   - torso_spread (cuerpo expandido)
-        #   - body_line (estructura alineada)
-        #   - centro de masa bajo
-        #
-        if (
-            (
-                ar >= self.aspect_ratio_lying
-                or spread >= self.torso_spread_lying
-            )
-            and body_line >= self.body_line_angle
-            and com >= self.com_y_lying_min
-        ):
-            return "acostado"
+        # ==========================================================
+        # 3️⃣ SISTEMA DE VOTACIÓN
+        # ==========================================================
+        score_standing = 0
+        score_sitting  = 0
+        score_lying    = 0
 
-        # =====================================================
-        # 2️⃣ SENTADO
-        # =====================================================
-        # Rodillas dobladas + cuerpo no expandido
-        if (
-            knee <= self.knee_angle_sitting_max
-            and com <= self.com_y_sitting_max
-            and ar < self.aspect_ratio_lying
-            and spread < self.torso_spread_lying
-        ):
-            return "sentado"
+        # ==========================================================
+        # 🔥 4️⃣ ACOSTADO ABSOLUTO (cuerpo ancho y extendido)
+        # ==========================================================
+        # Si el cuerpo es ancho y el torso está muy separado,
+        # es físicamente imposible que esté de pie o sentado.
+        if spread > 0.17 and ar > 1.0:
+            score_lying    += 6
+            score_standing -= 5
+            score_sitting  -= 3
 
-        # =====================================================
-        # 3️⃣ DE PIE
-        # =====================================================
-        # Piernas rectas + cuerpo compacto + vertical
-        if (
-            knee >= self.knee_angle_standing_min
-            and ar < self.aspect_ratio_lying * 0.8
-            and spread < self.torso_spread_lying * 0.6
-            and angle_from_vertical <= self.max_angle_standing
-            and com < self.com_y_standing_max
-        ):
-            return "de pie"
+        # ==========================================================
+        # 🔥 5️⃣ ACOSTADO ORIENTACIONAL (alineado con la cámara)
+        # ==========================================================
+        # Si el cuerpo es muy largo y recto pero no ancho,
+        # significa que está acostado apuntando hacia la cámara.
+        if spread > 0.20 and body_line > 140:
+            score_lying    += 5
+            score_standing -= 4
+            score_sitting  -= 2
 
-        return "desconocido"
+        # ==========================================================
+        # 🔥 6️⃣ SENTADO FUERTE
+        # ==========================================================
+        # Rodillas claramente dobladas → NO puede estar de pie.
+        if knee < 135:
+            score_sitting  += 4
+            score_standing -= 3
+
+        # ==========================================================
+        # 7️⃣ MÉTRICA PRINCIPAL: TORSO_SPREAD
+        # ==========================================================
+        # De pie   → spread pequeño
+        # Sentado  → spread medio
+        # Acostado → spread grande
+        if spread > 0.14:
+            score_lying += 3
+        elif spread > 0.12:
+            score_sitting += 2
+        else:
+            score_standing += 3
+
+        # ==========================================================
+        # 8️⃣ MÉTRICA DE FORMA: ASPECT_RATIO
+        # ==========================================================
+        # Acostado transversal → ar alto
+        # Acostado longitudinal → ar bajo pero spread alto
+        if ar > 1.2:
+            score_lying += 3
+        elif ar < 0.5 and spread > 0.18:
+            score_lying += 3
+        elif ar > 0.5:
+            score_sitting += 2
+        else:
+            score_standing += 2
+
+        # ==========================================================
+        # 9️⃣ MÉTRICA DE POSTURA: BODY_LINE
+        # ==========================================================
+        # Recto:
+        #   - con torso largo → acostado
+        #   - con torso corto → de pie
+        # Doblado → sentado
+        if body_line > 140:
+            if spread > 0.16:
+                score_lying += 3
+            else:
+                score_standing += 2
+        else:
+            score_sitting += 3
+
+        # ==========================================================
+        # 🔟 MÉTRICA DE PIERNAS
+        # ==========================================================
+        if knee < 120:
+            score_sitting += 3
+        elif knee > 160 and spread < 0.15:
+            score_standing += 2
+
+        # ==========================================================
+        # 1️⃣1️⃣ DECISIÓN FINAL
+        # ==========================================================
+        scores = {
+            "de pie": score_standing,
+            "sentado": score_sitting,
+            "acostado": score_lying
+        }
+
+        pose = max(scores, key=scores.get)
+
+        # ==========================================================
+        # 1️⃣2️⃣ CONTROL DE CONFIANZA
+        # ==========================================================
+        if scores[pose] < 3:
+            return "desconocido"
+
+        return pose
 
 
     def angle(self, a, b, c):
