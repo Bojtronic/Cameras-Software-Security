@@ -274,27 +274,22 @@ class PersonDetector:
         # ==========================================================
         # 0️⃣ VALIDACIÓN
         # ==========================================================
-        # Si MediaPipe no detecta una persona válida, no se clasifica.
         if not data or not data.get("present", False):
             return "desconocido"
 
         # ==========================================================
-        # 1️⃣ VARIABLES FÍSICAS EXTRAÍDAS DE LA IMAGEN
+        # 1️⃣ VARIABLES GEOMÉTRICAS
         # ==========================================================
-        # Estas variables describen la geometría del cuerpo
-        # proyectado en la cámara oblicua (vista desde esquina).
-        #
-        h         = data["body_height"]        # tamaño vertical del cuerpo (normalizado)
-        ar        = data["aspect_ratio"]       # ancho del cuerpo / altura proyectada
-        spread    = data["torso_spread"]       # separación hombros ↔ caderas
-        knee      = data["knee_angle"]         # ángulo de rodillas
-        body_line = data["body_line_angle"]   # alineación hombro → cadera → rodilla
-        head_tilt = data["head_tilt"]          # diferencia vertical cabeza ↔ caderas
+        h         = data["body_height"]
+        ar        = data["aspect_ratio"]
+        spread    = data["torso_spread"]
+        knee      = data["knee_angle"]
+        body_line = data["body_line_angle"]
+        head_tilt = data["head_tilt"]
 
         # ==========================================================
         # 2️⃣ FILTRO DE RUIDO
         # ==========================================================
-        # Si el cuerpo es muy pequeño, probablemente no es una persona válida
         if h < self.min_body_height:
             return "desconocido"
 
@@ -306,39 +301,48 @@ class PersonDetector:
         score_lying    = 0
 
         # ==========================================================
-        # 🔥 4️⃣ ACOSTADO ABSOLUTO (cuerpo ancho y extendido)
+        # 🔥 ACOSTADO POR ORIENTACIÓN GLOBAL (caída real)
         # ==========================================================
-        # Si el cuerpo es ancho y el torso está muy separado,
-        # es físicamente imposible que esté de pie o sentado.
-        if spread > 0.17 and ar > 1.0:
-            score_lying    += 6
+        # Si el cuerpo está casi horizontal en la imagen,
+        # significa que la persona está en el suelo,
+        # sin importar tamaño, distancia o perspectiva.
+        if 70 < body_line < 110:
+            score_lying    += 8
             score_standing -= 5
             score_sitting  -= 3
+    
+        # ==========================================================
+        # 🔥 4️⃣ ACOSTADO ABSOLUTO (expandido en el suelo)
+        # ==========================================================
+        # Cuerpo muy ancho y separado → acostado transversal
+        if spread > 0.17 and ar > 1.0:
+            score_lying    += 6
+            score_standing -= 4
+            score_sitting  -= 2
 
         # ==========================================================
-        # 🔥 5️⃣ ACOSTADO ORIENTACIONAL (alineado con la cámara)
+        # 🔥 5️⃣ ACOSTADO LONGITUDINAL (alineado con la cámara)
         # ==========================================================
-        # Si el cuerpo es muy largo y recto pero no ancho,
-        # significa que está acostado apuntando hacia la cámara.
+        # Muy largo y recto aunque no sea ancho → acostado
         if spread > 0.20 and body_line > 140:
             score_lying    += 5
-            score_standing -= 4
+            score_standing -= 3
             score_sitting  -= 2
 
         # ==========================================================
         # 🔥 6️⃣ SENTADO FUERTE
         # ==========================================================
-        # Rodillas claramente dobladas → NO puede estar de pie.
         if knee < 135:
             score_sitting  += 4
             score_standing -= 3
 
         # ==========================================================
-        # 7️⃣ MÉTRICA PRINCIPAL: TORSO_SPREAD
+        # 7️⃣ TORSO_SPREAD (métrica base)
         # ==========================================================
-        # De pie   → spread pequeño
-        # Sentado  → spread medio
-        # Acostado → spread grande
+        # En tu cámara:
+        #   - spread pequeño → de pie
+        #   - spread medio   → sentado
+        #   - spread grande  → acostado
         if spread > 0.14:
             score_lying += 3
         elif spread > 0.12:
@@ -347,13 +351,10 @@ class PersonDetector:
             score_standing += 3
 
         # ==========================================================
-        # 8️⃣ MÉTRICA DE FORMA: ASPECT_RATIO
+        # 8️⃣ ASPECT_RATIO
         # ==========================================================
-        # Acostado transversal → ar alto
-        # Acostado longitudinal → ar bajo pero spread alto
-        if ar > 1.2:
-            score_lying += 3
-        elif ar < 0.5 and spread > 0.18:
+        # Acostado longitudinal → cuerpo estrecho pero largo
+        if ar < 0.5 and spread > 0.18:
             score_lying += 3
         elif ar > 0.5:
             score_sitting += 2
@@ -361,12 +362,11 @@ class PersonDetector:
             score_standing += 2
 
         # ==========================================================
-        # 9️⃣ MÉTRICA DE POSTURA: BODY_LINE
+        # 9️⃣ BODY_LINE
         # ==========================================================
-        # Recto:
-        #   - con torso largo → acostado
-        #   - con torso corto → de pie
-        # Doblado → sentado
+        # Recto + torso largo = acostado
+        # Recto + torso corto = de pie
+        # Doblado = sentado
         if body_line > 140:
             if spread > 0.16:
                 score_lying += 3
@@ -376,7 +376,7 @@ class PersonDetector:
             score_sitting += 3
 
         # ==========================================================
-        # 🔟 MÉTRICA DE PIERNAS
+        # 🔟 PIERNAS
         # ==========================================================
         if knee < 120:
             score_sitting += 3
