@@ -1,4 +1,37 @@
+# 🔹 Entorno virtual
 venv/
+.env
+
+# 🔹 PyInstaller
 dist/
 build/
-.env
+
+# 🔹 Archivos Python
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+
+# 🔹 Caché y logs
+*.log
+*.sqlite3
+
+# 🔹 Entornos
+.env.*
+*.env
+
+# 🔹 Jupyter / IPython
+.ipynb_checkpoints/
+.ipython/
+
+# 🔹 Sistemas operativos
+.DS_Store
+Thumbs.db
+
+# 🔹 IDEs
+.vscode/
+.idea/
+*.swp
+
+# 🔹 Pip
+pip-wheel-metadata/
