@@ -7,6 +7,7 @@ import math
 import tkinter as tk
 from PIL import Image, ImageTk
 from services.camera_service import Camara
+import threading
 
 # =============================
 # CONFIG
@@ -132,6 +133,31 @@ def analyze(frame):
         "landmarks":r.pose_landmarks
     }
 
+
+
+class CamaraAsync:
+    def __init__(self, cam: Camara):
+        self.cam = cam
+        self.frame = None
+        self.lock = threading.Lock()
+        self.running = True
+        threading.Thread(target=self.update, daemon=True).start()
+
+    def update(self):
+        while self.running:
+            f = self.cam.obtener_frame()  # tu método original
+            if f is not None:
+                with self.lock:
+                    self.frame = f
+
+    def obtener_frame(self):
+        with self.lock:
+            return self.frame.copy() if self.frame is not None else None
+
+    def liberar(self):
+        self.running = False
+        self.cam.liberar()
+        
 # =============================
 # GUI
 # =============================
@@ -156,6 +182,8 @@ class App:
             "rtsp://telecom:TIss9831@192.168.18.44:554/Streaming/Channels/101?transportmode=unicast&profile=Profile_1",
             2
         )
+        
+        self.cam = CamaraAsync(self.cam)
 
         self.label = None
         self.frozen = False
