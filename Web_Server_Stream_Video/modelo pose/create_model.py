@@ -1,6 +1,7 @@
 import pandas as pd
 import tensorflow as tf
 from sklearn.model_selection import train_test_split
+from ..detectors.person_detector import PersonDetector
 
 data = pd.read_csv("pose_dataset.csv")
 

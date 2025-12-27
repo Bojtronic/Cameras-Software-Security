@@ -1,0 +1,19 @@
+# TensorFlow (carga el .h5)
+tensorflow==2.16.1
+
+# Conversor Keras → ONNX
+tf2onnx==1.16.1
+
+# Runtime y validación ONNX
+onnx==1.16.0
+
+# protobuf compatible con tf2onnx
+protobuf==3.20.3
+
+# NumPy estable y compatible con TF 2.16
+numpy==1.26.4
+
+# Utilidades internas
+packaging
+six
+flatbuffers
