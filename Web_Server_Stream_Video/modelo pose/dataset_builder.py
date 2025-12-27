@@ -84,7 +84,15 @@ def angle(a,b,c):
 # =============================
 mp_pose = mp.solutions.pose
 mp_draw = mp.solutions.drawing_utils
-pose = mp_pose.Pose()
+pose = mp_pose.Pose(
+    static_image_mode=False,
+    model_complexity=0,
+    min_detection_confidence=0.15,
+    min_tracking_confidence=0.15,
+    smooth_landmarks=True,
+    enable_segmentation=False
+)
+
 
 # =============================
 # ANALYZE
