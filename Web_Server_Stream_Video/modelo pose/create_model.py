@@ -1,7 +1,6 @@
 import pandas as pd
 import tensorflow as tf
 from sklearn.model_selection import train_test_split
-from ..detectors.person_detector import PersonDetector
 
 data = pd.read_csv("pose_dataset.csv")
 
@@ -13,7 +12,7 @@ X_train, X_test, y_train, y_test = train_test_split(
 )
 
 model = tf.keras.Sequential([
-    tf.keras.layers.Input(shape=(21,)),
+    tf.keras.layers.Input(shape=(29,)),
     tf.keras.layers.Dense(64, activation="relu"),
     tf.keras.layers.Dense(64, activation="relu"),
     tf.keras.layers.Dense(4, activation="softmax")

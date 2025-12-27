@@ -3,7 +3,7 @@ import tf2onnx
 
 model = tf.keras.models.load_model("pose_model.h5")
 
-spec = (tf.TensorSpec((None, 21), tf.float32, name="input"),)
+spec = (tf.TensorSpec((None, 29), tf.float32, name="input"),)
 
 output_path = "pose_model.onnx"
 

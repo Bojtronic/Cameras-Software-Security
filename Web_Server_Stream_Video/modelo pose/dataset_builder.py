@@ -23,9 +23,12 @@ LABELS = {
 
 FEATURE_NAMES = [
     "body_height","shoulder_width","hip_width","aspect_ratio","torso_spread",
-    "angle_from_vertical","head_tilt","knee_min","knee_diff",
-    "body_line_min","body_line_diff","shoulder_y_diff","hip_y_diff","knee_y_diff",
-    "elbow_min","elbow_diff","wrist_below_hip","head_below_shoulders",
+    "torso_angle","angle_from_vertical","head_tilt",
+    "knee_left","knee_right","knee_min","knee_max","knee_diff",
+    "body_line_min","body_line_max","body_line_diff",
+    "shoulder_y_diff","hip_y_diff","knee_y_diff",
+    "elbow_left","elbow_right","elbow_min","elbow_max","elbow_diff",
+    "wrist_below_hip","head_below_shoulders",
     "head_offset_x","head_shoulder_min","head_shoulder_diff"
 ]
 
@@ -39,13 +42,35 @@ def safe(v):
 
 def extract_features(d):
     return [
-        safe(d["body_height"]), safe(d["shoulder_width"]), safe(d["hip_width"]),
-        safe(d["aspect_ratio"]), safe(d["torso_spread"]), safe(d["angle_from_vertical"]),
-        safe(d["head_tilt"]), safe(d["knee_min"]), safe(d["knee_diff"]),
-        safe(d["body_line_min"]), safe(d["body_line_diff"]), safe(d["shoulder_y_diff"]),
-        safe(d["hip_y_diff"]), safe(d["knee_y_diff"]), safe(d["elbow_min"]),
-        safe(d["elbow_diff"]), int(d["wrist_below_hip"]), int(d["head_below_shoulders"]),
-        safe(d["head_offset_x"]), safe(d["head_shoulder_min"]), safe(d["head_shoulder_diff"])
+        safe(d["body_height"]), 
+        safe(d["shoulder_width"]), 
+        safe(d["hip_width"]),
+        safe(d["aspect_ratio"]), 
+        safe(d["torso_spread"]), 
+        safe(d["torso_angle"]),
+        safe(d["angle_from_vertical"]), 
+        safe(d["head_tilt"]),
+        safe(d["knee_left"]), 
+        safe(d["knee_right"]), 
+        safe(d["knee_min"]), 
+        safe(d["knee_max"]), 
+        safe(d["knee_diff"]),
+        safe(d["body_line_min"]), 
+        safe(d["body_line_max"]), 
+        safe(d["body_line_diff"]),
+        safe(d["shoulder_y_diff"]), 
+        safe(d["hip_y_diff"]), 
+        safe(d["knee_y_diff"]),
+        safe(d["elbow_left"]), 
+        safe(d["elbow_right"]), 
+        safe(d["elbow_min"]), 
+        safe(d["elbow_max"]), 
+        safe(d["elbow_diff"]),
+        int(d["wrist_below_hip"]), 
+        int(d["head_below_shoulders"]),
+        safe(d["head_offset_x"]), 
+        safe(d["head_shoulder_min"]), 
+        safe(d["head_shoulder_diff"])
     ]
 
 def angle(a,b,c):
@@ -65,72 +90,180 @@ pose = mp_pose.Pose()
 # ANALYZE
 # =============================
 def analyze(frame):
-    h,w = frame.shape[:2]
-    rgb = cv2.cvtColor(frame,cv2.COLOR_BGR2RGB)
-    r = pose.process(rgb)
-    if not r.pose_landmarks:
-        return None
+    h, w = frame.shape[:2]
+    rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
+    results = pose.process(rgb)
 
-    lm = r.pose_landmarks.landmark
+    # =========================================================
+    # 1️⃣ Validar presencia de persona
+    # =========================================================
+    if not results.pose_landmarks:
+        return {"present": False}
+
+    lm = results.pose_landmarks.landmark
     LM = mp_pose.PoseLandmark
 
-    nose=lm[LM.NOSE]; ls=lm[LM.LEFT_SHOULDER]; rs=lm[LM.RIGHT_SHOULDER]
-    lhip=lm[LM.LEFT_HIP]; rhip=lm[LM.RIGHT_HIP]
-    lk=lm[LM.LEFT_KNEE]; rk=lm[LM.RIGHT_KNEE]
-    la=lm[LM.LEFT_ANKLE]; ra=lm[LM.RIGHT_ANKLE]
-    le=lm[LM.LEFT_ELBOW]; re=lm[LM.RIGHT_ELBOW]
-    lw=lm[LM.LEFT_WRIST]; rw=lm[LM.RIGHT_WRIST]
+    # =========================================================
+    # 2️⃣ Manejo seguro de landmarks
+    # =========================================================
+    try:
+        nose = lm[LM.NOSE]
+        ls = lm[LM.LEFT_SHOULDER]
+        rs = lm[LM.RIGHT_SHOULDER]
+        lhip = lm[LM.LEFT_HIP]
+        rhip = lm[LM.RIGHT_HIP]
+        lk = lm[LM.LEFT_KNEE]
+        rk = lm[LM.RIGHT_KNEE]
+        la = lm[LM.LEFT_ANKLE]
+        ra = lm[LM.RIGHT_ANKLE]
+        le = lm[LM.LEFT_ELBOW]
+        re = lm[LM.RIGHT_ELBOW]
+        lw = lm[LM.LEFT_WRIST]
+        rw = lm[LM.RIGHT_WRIST]
+    except:
+        return {"present": False}
 
-    nose_y=nose.y; hip_y=(lhip.y+rhip.y)/2; knee_y=(lk.y+rk.y)/2
-    body_height=abs(nose_y-knee_y)
-    if body_height<0.25: return None
+    # =========================================================
+    # 3️⃣ Altura y filtros
+    # =========================================================
+    nose_y = nose.y
+    hip_y = (lhip.y + rhip.y) / 2
+    knee_y = (lk.y + rk.y) / 2
+    body_height = abs(nose_y - knee_y)
+    if body_height < 0.25:  # filtro mínimo
+        return {"present": False}
 
-    shoulder_width=abs(ls.x-rs.x)
-    hip_width=abs(lhip.x-rhip.x)
-    aspect_ratio=shoulder_width/body_height
+    # =========================================================
+    # 4️⃣ Ancho y proporciones
+    # =========================================================
+    shoulder_width = abs(ls.x - rs.x)
+    hip_width = abs(lhip.x - rhip.x)
+    aspect_ratio = shoulder_width / max(body_height, 1e-6)
 
-    sx=(ls.x+rs.x)/2; sy=(ls.y+rs.y)/2
-    hx=(lhip.x+rhip.x)/2; hy=(lhip.y+rhip.y)/2
-    torso_spread=math.hypot(sx-hx,sy-hy)
+    # =========================================================
+    # 5️⃣ Torso spread
+    # =========================================================
+    sx = (ls.x + rs.x) / 2
+    sy = (ls.y + rs.y) / 2
+    hx = (lhip.x + rhip.x) / 2
+    hy = (lhip.y + rhip.y) / 2
+    torso_spread = math.hypot(sx - hx, sy - hy)
 
-    cx=hx*w; cy=hy*h; nx=nose.x*w; ny=nose.y*h
-    torso_angle=math.degrees(math.atan2(ny-cy,nx-cx))
-    angle_from_vertical=abs(90-abs(torso_angle))
-    head_tilt=hip_y-nose_y
+    # =========================================================
+    # 6️⃣ Orientación
+    # =========================================================
+    cx = hx * w
+    cy = hy * h
+    nx = nose.x * w
+    ny = nose.y * h
+    torso_angle = math.degrees(math.atan2(ny - cy, nx - cx))
+    angle_from_vertical = abs(90 - abs(torso_angle))
 
-    lknee=angle(lhip,lk,la); rknee=angle(rhip,rk,ra)
-    knee_min=min(lknee,rknee); knee_diff=abs(lknee-rknee)
+    # =========================================================
+    # 7️⃣ Cabeza / horizontalidad
+    # =========================================================
+    head_tilt = hip_y - nose_y
 
-    ll=angle(ls,lhip,lk); rl=angle(rs,rhip,rk)
-    body_line_min=min(ll,rl); body_line_diff=abs(ll-rl)
+    # =========================================================
+    # 8️⃣ Rodillas
+    # =========================================================
+    left_knee = angle(lhip, lk, la)
+    right_knee = angle(rhip, rk, ra)
+    knee_min = min(left_knee, right_knee)
+    knee_max = max(left_knee, right_knee)
+    knee_diff = abs(left_knee - right_knee)
 
-    shoulder_y_diff=abs(ls.y-rs.y)
-    hip_y_diff=abs(lhip.y-rhip.y)
-    knee_y_diff=abs(lk.y-rk.y)
+    # =========================================================
+    # 9️⃣ Colinealidad
+    # =========================================================
+    left_line = angle(ls, lhip, lk)
+    right_line = angle(rs, rhip, rk)
+    body_line_min = min(left_line, right_line)
+    body_line_max = max(left_line, right_line)
+    body_line_diff = abs(left_line - right_line)
 
-    lel=angle(ls,le,lw); rel=angle(rs,re,rw)
-    elbow_min=min(lel,rel); elbow_diff=abs(lel-rel)
+    # =========================================================
+    # 🔟 Asimetría lateral
+    # =========================================================
+    shoulder_y_diff = abs(ls.y - rs.y)
+    hip_y_diff = abs(lhip.y - rhip.y)
+    knee_y_diff = abs(lk.y - rk.y)
 
-    wrist_below_hip=((lw.y+rw.y)/2)>hip_y
-    shoulder_y_avg=(ls.y+rs.y)/2; shoulder_x_avg=(ls.x+rs.x)/2
-    head_below_shoulders=nose.y>shoulder_y_avg
-    head_offset_x=abs(nose.x-shoulder_x_avg)
+    # =========================================================
+    # 1️⃣1️⃣ Brazos y codos
+    # =========================================================
+    left_elbow = angle(ls, le, lw)
+    right_elbow = angle(rs, re, rw)
+    elbow_min = min(left_elbow, right_elbow)
+    elbow_max = max(left_elbow, right_elbow)
+    elbow_diff = abs(left_elbow - right_elbow)
 
-    hls=math.hypot(nose.x-ls.x,nose.y-ls.y)
-    hrs=math.hypot(nose.x-rs.x,nose.y-rs.y)
+    wrist_y_avg = (lw.y + rw.y) / 2
+    wrist_below_hip = wrist_y_avg > hip_y
 
+    # =========================================================
+    # 1️⃣2️⃣ Cabeza y hombros
+    # =========================================================
+    shoulder_y_avg = (ls.y + rs.y) / 2
+    shoulder_x_avg = (ls.x + rs.x) / 2
+    head_below_shoulders = nose.y > shoulder_y_avg
+    head_offset_x = abs(nose.x - shoulder_x_avg)
+    head_to_left_shoulder = math.hypot(nose.x - ls.x, nose.y - ls.y)
+    head_to_right_shoulder = math.hypot(nose.x - rs.x, nose.y - rs.y)
+    head_shoulder_min = min(head_to_left_shoulder, head_to_right_shoulder)
+    head_shoulder_diff = abs(head_to_left_shoulder - head_to_right_shoulder)
+
+    # =========================================================
+    # 1️⃣3️⃣ Retorno de features
+    # =========================================================
     return {
-        "body_height":body_height,"shoulder_width":shoulder_width,"hip_width":hip_width,
-        "aspect_ratio":aspect_ratio,"torso_spread":torso_spread,
-        "angle_from_vertical":angle_from_vertical,"head_tilt":head_tilt,
-        "knee_min":knee_min,"knee_diff":knee_diff,
-        "body_line_min":body_line_min,"body_line_diff":body_line_diff,
-        "shoulder_y_diff":shoulder_y_diff,"hip_y_diff":hip_y_diff,"knee_y_diff":knee_y_diff,
-        "elbow_min":elbow_min,"elbow_diff":elbow_diff,
-        "wrist_below_hip":wrist_below_hip,"head_below_shoulders":head_below_shoulders,
-        "head_offset_x":head_offset_x,
-        "head_shoulder_min":min(hls,hrs),"head_shoulder_diff":abs(hls-hrs),
-        "landmarks":r.pose_landmarks
+        "present": True,
+
+        # Forma global
+        "body_height": body_height,
+        "shoulder_width": shoulder_width,
+        "hip_width": hip_width,
+        "aspect_ratio": aspect_ratio,
+        "torso_spread": torso_spread,
+
+        # Orientación
+        "torso_angle": torso_angle,
+        "angle_from_vertical": angle_from_vertical,
+        "head_tilt": head_tilt,
+
+        # Piernas
+        "knee_left": left_knee,
+        "knee_right": right_knee,
+        "knee_min": knee_min,
+        "knee_max": knee_max,
+        "knee_diff": knee_diff,
+
+        # Colinealidad
+        "body_line_min": body_line_min,
+        "body_line_max": body_line_max,
+        "body_line_diff": body_line_diff,
+
+        # Asimetría
+        "shoulder_y_diff": shoulder_y_diff,
+        "hip_y_diff": hip_y_diff,
+        "knee_y_diff": knee_y_diff,
+
+        # Brazos
+        "elbow_left": left_elbow,
+        "elbow_right": right_elbow,
+        "elbow_min": elbow_min,
+        "elbow_max": elbow_max,
+        "elbow_diff": elbow_diff,
+        "wrist_below_hip": wrist_below_hip,
+
+        # Cabeza
+        "head_below_shoulders": head_below_shoulders,
+        "head_offset_x": head_offset_x,
+        "head_shoulder_min": head_shoulder_min,
+        "head_shoulder_diff": head_shoulder_diff,
+
+        # Landmarks originales
+        "landmarks": results.pose_landmarks
     }
 
 
@@ -238,8 +371,10 @@ class App:
             self.frame=self.cam.obtener_frame()
             if self.frame is not None:
                 self.data=analyze(self.frame)
-                if self.data:
-                    mp_draw.draw_landmarks(self.frame,self.data["landmarks"],mp_pose.POSE_CONNECTIONS)
+                # Dibujar solo si hay persona presente
+                if self.data.get("present", False):
+                    mp_draw.draw_landmarks(self.frame, self.data["landmarks"], mp_pose.POSE_CONNECTIONS)
+
 
         if self.frame is not None:
             img = cv2.cvtColor(self.frame, cv2.COLOR_BGR2RGB)
