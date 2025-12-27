@@ -4,3 +4,6 @@ pandas==2.2.2
 matplotlib
 seaborn
 joblib
+tf2onnx
+onnx
+numpy==1.26.4

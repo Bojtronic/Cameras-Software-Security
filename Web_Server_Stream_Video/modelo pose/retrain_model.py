@@ -1,18 +1,15 @@
 import pandas as pd
 import tensorflow as tf
-from sklearn.preprocessing import StandardScaler
 
 model = tf.keras.models.load_model("pose_model.h5")
 
-data = pd.read_csv("pose_dataset.csv", header=None)
+data = pd.read_csv("pose_dataset.csv")
 
-X = data.iloc[:, :-1]
-y = data.iloc[:, -1]
+X = data.iloc[:, :-1].values.astype("float32")
+y = data.iloc[:, -1].values.astype("int")
 
-scaler = StandardScaler()
-X = scaler.fit_transform(X)
-
-model.fit(X, y, epochs=10)
+model.fit(X, y, epochs=10, batch_size=32)
 
 model.save("pose_model.h5")
+
 print("Modelo reentrenado")

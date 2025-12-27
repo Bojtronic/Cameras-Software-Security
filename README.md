@@ -1,18 +1,18 @@
-# 🧠 **SISTEMA DE VISIÓN ARTIFICIAL Y CONTROL**
+# 🧠 SISTEMA DE VISIÓN ARTIFICIAL Y CONTROL
 
-Sistema de visión artificial y control desarrollado con **FastAPI, OpenCV, MediaPipe y cámaras ONVIF**.
-
----
-
-# 📦 **REQUISITOS PREVIOS**
-
-- ✅ **Python 3.10 o superior**
-- ✅ **Git**
-- ✅ **Windows 10/11** (requerido para generar el `.exe`)
+Sistema de visión artificial y control desarrollado con **FastAPI, OpenCV, MediaPipe y cámaras ONVIF**, con clasificación de poses mediante **IA (ONNX Runtime)**.
 
 ---
 
-# 📥 **1️⃣ CLONAR EL REPOSITORIO**
+## 📦 Requisitos
+
+- **Python 3.10+**
+- **Git**
+- **Windows 10/11** (para generar `.exe`)
+
+---
+
+## 📥 1. Clonar repositorio
 
 ```bash
 git clone https://github.com/Bojtronic/Cameras-Software-Security.git
@@ -21,123 +21,81 @@ cd Cameras-Software-Security
 
 ---
 
-# 🧪 **2️⃣ CREAR Y ACTIVAR EL ENTORNO VIRTUAL**
+## 🧪 2. Entornos virtuales
 
-Se requieren 2 en tornor virtuales uno para el desarrollo y generación del ejecutable, y otro para la creación y entrenamiento del modelo para la clasificación de poses 
+Se usan **dos entornos**:
 
+| Entorno | Uso |
+|-------|-----|
+| `venv-train` | Crear dataset, entrenar modelo, exportar a ONNX |
+| `venv` | Ejecutar FastAPI, MediaPipe y generar ejecutable |
 
-Crear el entorno virtual para el modelo IA:
+Crear entornos:
 
 ```bash
 python -m venv venv-train
-```
-
-
-Crear el entorno virtual para el desarrollo:
-
-```bash
 python -m venv venv
 ```
 
 ---
 
-# 📚 **3️⃣ INSTALAR DEPENDENCIAS**
+## 📚 3. Instalar dependencias
 
-
-Instalar librerías para la creación y entrenamiento del modelo:
-
-Activar el entorno virtual correspondiente:
+### 🔹 Entrenamiento IA
 
 ```bash
 venv-train\Scripts\activate
-```
-
-Instalar librerías:
-
-```bash
 pip install -r requirements-train.txt
-```
-
-Una vez intalado se debe desactivar el entorno para poder instalar las librerias en el entorno virtual para el desarrollo:
-
-```bash
 deactivate
 ```
 
-
-Instalar librerías para el desarrollo:
-
-
-Activar el entorno virtual correspondiente:
+### 🔹 Desarrollo y runtime
 
 ```bash
 venv\Scripts\activate
-```
-
-Instalar herramientas para el ejecutable:
-
-```bash
 pip install -r requirements.txt
-```
-
-Instalar herramientas de desarrollo y build:
-
-```bash
 pip install -r requirements-dev.txt
-```
-
-Si se requiere desactivar este entorno se ejecuta el siguiente comando:
-
-
-```bash
-deactivate
 ```
 
 ---
 
-# ▶️ **4️⃣ EJECUTAR EN MODO DESARROLLO**
+## 🧠 4. Flujo del modelo IA
 
+1. **Recolectar dataset** (pose_dataset.csv)
+2. **Entrenar modelo** → genera `pose_model.h5`
+3. **Convertir a ONNX**
+4. **Usar ONNX en producción**
 
+### Convertir Keras → ONNX
 
-Si no está activo, activar el entorno virtual correspondiente:
+```bash
+python -m tf2onnx.convert \
+  --keras pose_model.h5 \
+  --output models/pose_model.onnx \
+  --opset 13
+```
+
+⚠ **Solo el `.onnx` se usa en producción**.  
+TensorFlow **NO** es requerido en `venv`.
+
+---
+
+## ▶️ 5. Ejecutar en desarrollo
 
 ```bash
 venv\Scripts\activate
-```
-
-Ejecutar la aplicación principal:
-
-```bash
 python run_ui.py
 ```
 
 ---
 
-# 🧪 **5️⃣ DESARROLLO**
-
-Durante el desarrollo puedes:
-
-- Editar el código
-- Ejecutar el servidor o el script principal
-- Usar `pipreqs`, `pip-check-reqs` y `pip-tools` para validar dependencias
-
-Verificar imports faltantes:
-
-```bash
-pip-missing-reqs .
-```
-
----
-
-# 🏗 **6️⃣ GENERAR EL EJECUTABLE (BUILD)**
-
-Cuando el desarrollo esté terminado:
+## 🏗 6. Generar ejecutable
 
 ```bash
 pyinstaller run.spec
 ```
 
-El ejecutable final se generará en:
+El `.exe` final queda en:
 
 ```text
 /dist/
@@ -145,25 +103,24 @@ El ejecutable final se generará en:
 
 ---
 
-# 📦 **7️⃣ DISTRIBUCIÓN**
+## 📦 7. Distribución
 
-El contenido de la carpeta:
+La carpeta:
 
 ```text
 dist/
 ```
 
-- Es el que se debe distribuir o instalar en las máquinas destino  
-- No es necesario que esas máquinas tengan Python instalado  
+- Contiene el ejecutable y dependencias
+- No requiere Python instalado
 
 ---
 
-# 🛡 **NOTAS IMPORTANTES**
+## 🛡 Notas importantes
 
-- Nunca ejecutes **PyInstaller** fuera del entorno virtual
-- No uses `pip freeze > requirements.txt` en este proyecto
-- Las dependencias de runtime y desarrollo están separadas por diseño:
-  - `requirements.txt` → lo que el ejecutable necesita  
-  - `requirements-dev.txt` → herramientas para construirlo  
-
----
+- **No mezclar entornos**
+- **TensorFlow solo vive en `venv-train`**
+- El runtime usa **ONNX Runtime**
+- `requirements.txt` = producción
+- `requirements-dev.txt` = build
+- `requirements-train.txt` = IA
