@@ -348,21 +348,87 @@ class App:
 
         btn_font = ("Segoe UI", 16, "bold")
 
-        tk.Button(self.controls, text="❄ Freeze", font=btn_font, width=10,
-                command=self.freeze).pack(side="left", padx=10)
+        POSE_BUTTON_COLORS = {
+            "standing": "#0000FF",   # 🔵 Azul
+            "sitting":  "#00FF00",   # 🟢 Verde
+            "lying":    "#FFA500",   # 🟠 Naranja
+            "fall":     "#FF0000",   # 🔴 Rojo
+        }
+        
+        ACTIVE_GRAY = "#444444"
+
+        tk.Button(
+            self.controls,
+            text="❄ Freeze",
+            font=btn_font,
+            width=10,
+            bg="#777777",
+            fg="white",
+            activebackground=ACTIVE_GRAY,
+            activeforeground="white",
+            relief="raised",
+            bd=3,
+            command=self.freeze
+        ).pack(side="left", padx=10)
 
         for k in LABELS:
-            tk.Button(self.controls, text=k, font=btn_font, width=10,
-                    command=lambda k=k: self.set_label(k)).pack(side="left", padx=5)
+            color = POSE_BUTTON_COLORS.get(k.lower(), "#C8C8C8")
 
-        tk.Button(self.controls, text="💾 Save", font=btn_font, width=10,
-                command=self.save).pack(side="left", padx=10)
+            tk.Button(
+                self.controls,
+                text=k.capitalize(),
+                font=btn_font,
+                width=10,
+                bg=color,
+                fg="white",
+                activebackground=ACTIVE_GRAY,   # 👈 se vuelve gris al presionar
+                activeforeground="white",
+                relief="raised",
+                bd=3,
+                command=lambda k=k: self.set_label(k)
+            ).pack(side="left", padx=5)
 
-        tk.Button(self.controls, text="✖ Discard", font=btn_font, width=10,
-                command=self.discard).pack(side="left", padx=10)
+        tk.Button(
+            self.controls,
+            text="💾 Save",
+            font=btn_font,
+            width=10,
+            bg="#777777",
+            fg="white",
+            activebackground=ACTIVE_GRAY,
+            activeforeground="white",
+            relief="raised",
+            bd=3,
+            command=self.save
+        ).pack(side="left", padx=10)
 
-        tk.Button(self.controls, text="⛔ Exit", font=btn_font, width=10,
-                command=self.exit).pack(side="right", padx=20)
+        tk.Button(
+            self.controls,
+            text="✖ Discard",
+            font=btn_font,
+            width=10,
+            bg="#777777",
+            fg="white",
+            activebackground=ACTIVE_GRAY,
+            activeforeground="white",
+            relief="raised",
+            bd=3,
+            command=self.discard
+        ).pack(side="left", padx=10)
+
+        tk.Button(
+            self.controls,
+            text="⛔ Exit",
+            font=btn_font,
+            width=10,
+            bg="#444444",
+            fg="white",
+            activebackground="#FF4444",
+            activeforeground="white",
+            relief="raised",
+            bd=3,
+            command=self.exit
+        ).pack(side="right", padx=20)
 
         # ===========================
         # CSV
