@@ -1,8 +1,9 @@
 fastapi==0.127.0
 mediapipe==0.10.14
-numpy==1.26.4
 
-onnxruntime==1.17.3
+tensorflow==2.16.1
+
+numpy==1.26.4
 
 opencv-python==4.8.1.78
 opencv-contrib-python==4.8.1.78

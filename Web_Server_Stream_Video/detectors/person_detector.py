@@ -2,7 +2,7 @@ import mediapipe as mp
 import numpy as np
 import cv2
 import math
-import onnxruntime as ort
+import tensorflow as tf
 import os
 import sys
 from pathlib import Path
@@ -28,31 +28,26 @@ class PersonDetector:
         self.min_visible_landmarks = min_visible_landmarks
 
         # -------------------------------
-        # Modelo IA (ONNX)
+        # Modelo IA (TensorFlow .h5)
         # -------------------------------
         if model_path is None:
             base_path = Path(__file__).resolve().parent.parent
-            model_path = base_path / "modelo pose" / "pose_model.onnx"
+            model_path = base_path / "pose_model.h5"
 
         model_path = str(model_path)
 
         if not os.path.exists(model_path):
-            raise RuntimeError(f"Modelo ONNX no encontrado: {model_path}")
-
+            raise RuntimeError(f"Modelo .h5 no encontrado: {model_path}")
 
         try:
-            self.session = ort.InferenceSession(model_path, providers=["CPUExecutionProvider"])
+            self.model = tf.keras.models.load_model(model_path)
         except Exception as e:
-            raise RuntimeError(f"Error cargando modelo ONNX: {e}")
-        
-        
-        inputs = self.session.get_inputs()
-        if inputs[0].shape[-1] != 21:
-            raise RuntimeError("El modelo ONNX no coincide con las 21 features del dataset")
+            raise RuntimeError(f"Error cargando modelo .h5: {e}")
 
-        self.input_name = self.session.get_inputs()[0].name
-        self.output_name = self.session.get_outputs()[0].name
-
+        # Verificar dimensión de entrada (29 features)
+        input_shape = self.model.input_shape
+        if input_shape[-1] != 29:
+            raise RuntimeError(f"El modelo espera {input_shape[-1]} features, pero el sistema genera 29")
 
         # Clases (exactamente las del entrenamiento)
         self.classes = ["standing", "sitting", "lying", "fall"]
@@ -265,6 +260,8 @@ class PersonDetector:
         # =========================================================
         return {
             "present": True,
+            "landmarks": results.pose_landmarks,
+            "visibility_count": vis_count,
 
             # Forma global
             "body_height": body_height,
@@ -320,7 +317,7 @@ class PersonDetector:
         if not data or not data.get("present", False):
             return "desconocido"
 
-        # 1️⃣ Construir vector de entrada EXACTO al entrenamiento
+        # 1️⃣ Construir vector EXACTO al dataset (29 features)
         try:
             features = np.array([[ 
                 data["body_height"],
@@ -356,11 +353,8 @@ class PersonDetector:
         except KeyError:
             return "desconocido"
 
-        # 2️⃣ Inferencia ONNX
-        probs = self.session.run(
-            [self.output_name],
-            {self.input_name: features}
-        )[0][0]
+        # 2️⃣ Inferencia TensorFlow
+        probs = self.model.predict(features, verbose=0)[0]
 
         # 3️⃣ Seleccionar clase
         class_id = int(np.argmax(probs))

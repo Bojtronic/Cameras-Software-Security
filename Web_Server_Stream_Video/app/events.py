@@ -31,7 +31,6 @@ async def lifespan(app):
     # DETECTOR
     # =========================
     detector = PersonDetector(
-        model_path=Path(__file__).resolve().parent.parent / "modelo pose" / "pose_model.onnx",
         min_detection_conf=config.DETECTION_CONF,
         min_tracking_conf=config.TRACKING_CONF,
         vis_thresh=config.VIS_THRESH,

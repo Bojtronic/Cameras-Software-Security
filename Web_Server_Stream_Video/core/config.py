@@ -20,7 +20,7 @@
 #   - Solo personas claras
 #   - Puede perder personas en el suelo o parcialmente visibles
 #
-DETECTION_CONF = 0.5
+DETECTION_CONF = 0.4
 
 
 # ------------------------------------------------------------
@@ -83,7 +83,7 @@ SMOOTH_SEGMENTATION = False
 # 0.4–0.5 → ideal
 # 0.6+ → muy estricto
 #
-VIS_THRESH = 0.4
+VIS_THRESH = 0.3
 
 
 # ------------------------------------------------------------
@@ -259,12 +259,12 @@ ENABLE_ONVIF = False
 # COLORES DE ESTADO
 # ------------------------------------------------------------
 POSE_COLORS = {
-    "de pie": (0, 255, 0),
-    "sentado": (0, 200, 255),
-    "acostado": (0, 0, 255),
+    "standing": (255, 0, 0),      # 🔵 Azul
+    "sitting":  (0, 255, 0),      # 🟢 Verde
+    "lying":    (0, 165, 255),    # 🟠 Naranja
+    "fall":     (0, 0, 255),      # 🔴 Rojo
     "desconocido": (200, 200, 200)
 }
-
 
 # ------------------------------------------------------------
 # RED

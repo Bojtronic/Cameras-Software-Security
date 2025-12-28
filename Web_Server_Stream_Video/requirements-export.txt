@@ -1,19 +1,17 @@
-# TensorFlow (carga el .h5)
+# TensorFlow (lee el .h5 y exporta SavedModel)
 tensorflow==2.16.1
 
-# Conversor Keras → ONNX
-tf2onnx==1.16.1
-
-# Runtime y validación ONNX
-onnx==1.16.0
-
-# protobuf compatible con tf2onnx
-protobuf==3.20.3
-
-# NumPy estable y compatible con TF 2.16
+# NumPy compatible con TF 2.16
 numpy==1.26.4
 
-# Utilidades internas
-packaging
-six
-flatbuffers
+# ONNX core
+onnx==1.16.0
+
+# Runtime y convertidor oficial
+onnxruntime==1.17.3
+
+# Librería que contiene `onnxruntime.tools.convert_onnx`
+onnxscript==0.1.0
+
+# protobuf compatible con TF + ONNX
+protobuf==4.25.3

@@ -1,17 +1,22 @@
 import tensorflow as tf
-import tf2onnx
+import os
 
+print("Cargando modelo...")
 model = tf.keras.models.load_model("pose_model.h5")
 
-spec = (tf.TensorSpec((None, 29), tf.float32, name="input"),)
+print("Exportando a SavedModel...")
+model.export("saved_pose_model")
 
-output_path = "pose_model.onnx"
+print("Convirtiendo a ONNX...")
 
-model_proto, _ = tf2onnx.convert.from_keras(
-    model,
-    input_signature=spec,
-    output_path=output_path,
-    opset=13
+cmd = (
+    "python -m onnxruntime.tools.convert_onnx "
+    "--input saved_pose_model "
+    "--output pose_model.onnx "
+    "--opset 13"
 )
 
-print("Exportado a", output_path)
+print(cmd)
+os.system(cmd)
+
+print("ONNX generado: pose_model.onnx")
