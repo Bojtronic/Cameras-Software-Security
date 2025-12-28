@@ -1,14 +1,41 @@
-# 🧠 SISTEMA DE VISIÓN ARTIFICIAL Y CONTROL
+# 🧠 Sistema de Visión Artificial y Control
 
-Sistema de visión artificial y control desarrollado con **FastAPI, OpenCV, MediaPipe y cámaras ONVIF**, con clasificación de poses mediante **IA (ONNX Runtime)**.
+Sistema de visión artificial y control desarrollado con **FastAPI, OpenCV, MediaPipe y cámaras ONVIF**, con clasificación de poses mediante **IA (TensorFlow)**.
+
+Este documento describe paso a paso cómo instalar, entrenar y ejecutar el sistema en una nueva computadora.
 
 ---
 
 ## 📦 Requisitos
 
-- **Python 3.10+**
-- **Git**
-- **Windows 10/11** (para generar `.exe`)
+### Python
+- **Python 3.10 o superior**
+
+Verificar instalación:
+```bash
+python --version
+```
+
+Descarga: https://www.python.org/downloads/
+
+### Git (opcional)
+Solo requerido si vas a clonar o modificar el repositorio.
+
+Verificar:
+```bash
+git --version
+```
+
+Descarga: https://git-scm.com/install/windows 
+
+### Sistema Operativo
+- **Windows 10 / 11** 
+Requerido para generar `.exe`
+
+### Visual Studio Code (opcional)
+Editor recomendado para desarrollo.
+
+Descarga: https://code.visualstudio.com/
 
 ---
 
@@ -21,14 +48,20 @@ cd Cameras-Software-Security
 
 ---
 
-## 🧪 2. Entornos virtuales
+## 🧪 2. Crear entornos virtuales
 
-Se usan **dos entornos**:
+Se utilizan **dos entornos**:
 
 | Entorno | Uso |
 |-------|-----|
-| `venv-train` | Crear dataset, entrenar modelo, exportar a ONNX |
-| `venv` | Ejecutar FastAPI, MediaPipe y generar ejecutable |
+| `venv-train` | Entrenamiento de IA y generación del modelo |
+| `venv` | Ejecución del sistema y generación del ejecutable |
+
+Ir a la carpeta del proyecto:
+
+```bash
+cd Cameras-Software-Security/Web_Server_Stream_Video
+```
 
 Crear entornos:
 
@@ -41,7 +74,7 @@ python -m venv venv
 
 ## 📚 3. Instalar dependencias
 
-### 🔹 Entrenamiento IA
+### 🔹 Entrenamiento de IA
 
 ```bash
 venv-train\Scripts\activate
@@ -49,55 +82,91 @@ pip install -r requirements-train.txt
 deactivate
 ```
 
-### 🔹 Desarrollo y runtime
+### 🔹 Runtime y servidor
 
 ```bash
 venv\Scripts\activate
 pip install -r requirements.txt
 pip install -r requirements-dev.txt
+deactivate
 ```
 
 ---
 
 ## 🧠 4. Flujo del modelo IA
 
-1. **Recolectar dataset** (pose_dataset.csv)
-2. **Entrenar modelo** → genera `pose_model.h5`
-3. **Convertir a ONNX**
-4. **Usar ONNX en producción**
+### 4.1 Crear Dataset
 
-### Convertir Keras → ONNX
+Activar entorno de entrenamiento:
 
 ```bash
-python -m tf2onnx.convert \
-  --keras pose_model.h5 \
-  --output models/pose_model.onnx \
-  --opset 13
+venv-train\Scripts\activate
 ```
 
-⚠ **Solo el `.onnx` se usa en producción**.  
-TensorFlow **NO** es requerido en `venv`.
+Ejecutar:
+
+```bash
+python -m "modelo pose.dataset_builder"
+```
+
+Esto genera:
+```
+pose_dataset.csv
+```
 
 ---
 
-## ▶️ 5. Ejecutar en desarrollo
+### 4.2 Entrenar modelo
+
+```bash
+python -m "modelo pose.create_model"
+```
+
+Se generará:
+```
+pose_model.h5
+```
+
+---
+
+### 4.3 Reentrenar modelo (opcional)
+
+```bash
+python -m "modelo pose.retrain_model"
+```
+
+Esto mejora el modelo usando nuevos datos.
+
+Recordar siempre desactivar este entorno virtual despues de crear el modelo pues no se debe mezclar con el entorno virtual de ejecución y construcción 
+
+```bash
+deactivate
+```
+
+---
+
+## ▶️ 5. Ejecutar el sistema
 
 ```bash
 venv\Scripts\activate
 python run_ui.py
 ```
 
+Luego abre en el navegador:
+```
+http://localhost:8000
+```
+
 ---
 
-## 🏗 6. Generar ejecutable
+## 🏗 6. Generar ejecutable (.exe)
 
 ```bash
 pyinstaller run.spec
 ```
 
-El `.exe` final queda en:
-
-```text
+El ejecutable se genera en:
+```
 /dist/
 ```
 
@@ -106,21 +175,27 @@ El `.exe` final queda en:
 ## 📦 7. Distribución
 
 La carpeta:
-
-```text
+```
 dist/
 ```
+Contiene:
+- El `.exe`
+- Todas las dependencias necesarias
 
-- Contiene el ejecutable y dependencias
-- No requiere Python instalado
+No requiere Python instalado en la máquina destino.
 
 ---
 
-## 🛡 Notas importantes
+## 🛡 Reglas importantes
 
-- **No mezclar entornos**
-- **TensorFlow solo vive en `venv-train`**
-- El runtime usa **ONNX Runtime**
-- `requirements.txt` = producción
-- `requirements-dev.txt` = build
-- `requirements-train.txt` = IA
+- ❌ No mezclar entornos
+- `requirements-train.txt` → Entrenamiento IA
+- `requirements.txt` → Desarrollo y Producción
+- `requirements-dev.txt` → Compilación
+
+
+---
+
+## 📞 Soporte
+
+Correo **bojtronic@gmail.com**  
