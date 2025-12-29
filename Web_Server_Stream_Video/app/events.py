@@ -1,9 +1,8 @@
 import threading
 import time
 from contextlib import asynccontextmanager
-
+from pathlib import Path
 import cv2
-
 from core import config
 from detectors.person_detector import PersonDetector
 from services.camera_service import Camara
@@ -36,28 +35,9 @@ async def lifespan(app):
         min_tracking_conf=config.TRACKING_CONF,
         vis_thresh=config.VIS_THRESH,
         min_visible_landmarks=config.MIN_LANDMARKS,
-        hombros_min_px=config.HOMBROS_MIN_PX,
-        hombros_max_px=config.HOMBROS_MAX_PX,
         model_complexity=config.MODEL_COMPLEXITY,
         enable_segmentation=config.ENABLE_SEGMENTATION,
-        smooth_landmarks=config.SMOOTH_LANDMARKS,
-
-        min_body_height=config.MIN_BODY_HEIGHT,
-        aspect_ratio_lying=config.ASPECT_RATIO_LYING,
-        max_angle_standing=config.MAX_ANGLE_STANDING,
-        min_angle_lying=config.MIN_ANGLE_LYING,
-        head_tilt_min_standing=config.HEAD_TILT_MIN_STANDING,
-        com_y_standing_max=config.COM_Y_STANDING_MAX,
-        com_y_sitting_max=config.COM_Y_SITTING_MAX,
-        
-        torso_expand_min_lying = config.COM_Y_SITTING_MAX,
-        com_y_lying_min = config.TORSO_EXPAND_MIN_LYING,
-        knee_angle_sitting_max = config.KNEE_ANGLE_SITTING_MAX,
-        knee_angle_standing_min = config.KNEE_ANGLE_STANDING_MIN,
-        
-        torso_spread_lying = config.TORSO_SPREAD_LYING,
-        body_line_angle = config.BODY_LINE_ANGLE
-        
+        smooth_landmarks=config.SMOOTH_LANDMARKS
     )
 
     presence = PersonPresenceController(

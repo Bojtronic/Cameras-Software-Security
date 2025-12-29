@@ -2,59 +2,77 @@ import mediapipe as mp
 import numpy as np
 import cv2
 import math
-
+import tensorflow as tf
+import os
+import sys
+from pathlib import Path
 
 class PersonDetector:
 
     def __init__(
         self,
+        model_path=None,
         min_detection_conf=0.5,
         min_tracking_conf=0.5,
         vis_thresh=0.5,
         min_visible_landmarks=4,
-        hombros_min_px=10,
-        hombros_max_px=1000,
         model_complexity=1,
         enable_segmentation=False,
-        smooth_landmarks=True,        
-        
-        min_body_height=0.25,
-        aspect_ratio_lying=0.9,
-        max_angle_standing=20,
-        min_angle_lying=60,
-        head_tilt_min_standing=0.12,
-        com_y_standing_max=0.55,
-        com_y_sitting_max=0.75,
-        
-        torso_expand_min_lying=0.9,     # equivalente a aspect_ratio_lying
-        com_y_lying_min=0.60,          # centro de masa bajo = cuerpo en el suelo
-        knee_angle_sitting_max=120,    # debajo de esto es sentado
-        knee_angle_standing_min=150,   # encima de esto es de pie
-        
-        torso_spread_lying=0.10,
-        body_line_angle=150
+        smooth_landmarks=True
     ):
+
+        # -------------------------------
+        # MediaPipe Pose
+        # -------------------------------
         self.vis_thresh = vis_thresh
         self.min_visible_landmarks = min_visible_landmarks
-        self.hombros_min_px = hombros_min_px
-        self.hombros_max_px = hombros_max_px
-        
-        self.min_body_height = min_body_height
-        self.aspect_ratio_lying = aspect_ratio_lying
-        self.max_angle_standing = max_angle_standing
-        self.min_angle_lying = min_angle_lying
-        self.head_tilt_min_standing = head_tilt_min_standing
-        self.com_y_standing_max = com_y_standing_max
-        self.com_y_sitting_max = com_y_sitting_max
-        
-        self.torso_expand_min_lying = torso_expand_min_lying
-        self.com_y_lying_min = com_y_lying_min
-        self.knee_angle_sitting_max = knee_angle_sitting_max
-        self.knee_angle_standing_min = knee_angle_standing_min
-        
-        self.torso_spread_lying = torso_spread_lying
-        self.body_line_angle = body_line_angle
 
+        # -------------------------------
+        # Resolver ruta base (DEV o EXE)
+        # -------------------------------
+        if hasattr(sys, "_MEIPASS"):
+            base_path = sys._MEIPASS   # Cuando corre dentro del .exe
+        else:
+            base_path = Path(__file__).resolve().parent.parent  # Cuando corre como .py
+
+
+        # -------------------------------
+        # Modelo IA (TensorFlow .h5)
+        # -------------------------------
+        if model_path is None:
+            model_path = os.path.join(base_path, "pose_model.h5")
+
+        model_path = os.path.abspath(model_path)
+
+        if not os.path.exists(model_path):
+            raise RuntimeError(f"Modelo .h5 no encontrado: {model_path}")
+
+
+        try:
+            self.model = tf.keras.models.load_model(model_path)
+        except Exception as e:
+            raise RuntimeError(f"Error cargando modelo .h5: {e}")
+
+        # Verificar dimensión de entrada (29 features)
+        input_shape = self.model.input_shape
+        if input_shape[-1] != 29:
+            raise RuntimeError(f"El modelo espera {input_shape[-1]} features, pero el sistema genera 29")
+
+        # Clases (exactamente las del entrenamiento)
+        self.classes = ["standing", "sitting", "lying", "fall"]
+
+        # Umbral de confianza
+        self.min_confidence = 0.50
+
+        # Filtro anti-ruido
+        self.min_body_height = 0.25
+        
+        #numero para indicar que no se pudo calcular un angulo
+        self.INVALID_ANGLE = -1.0
+
+        # -------------------------------
+        # MediaPipe
+        # -------------------------------
         self.pose = mp.solutions.pose.Pose(
             min_detection_confidence=min_detection_conf,
             min_tracking_confidence=min_tracking_conf,
@@ -65,17 +83,6 @@ class PersonDetector:
 
         self.LM = mp.solutions.pose.PoseLandmark
 
-    def _has_landmarks(self, lm, *ids):
-        """
-        Verifica que todos los landmarks indicados:
-        - Existan
-        - Tengan visibilidad >= vis_thresh
-        """
-        return all(
-            lm[i].visibility >= self.vis_thresh
-            for i in ids
-        )
-
     # ---------------------------------------------------------------------
     # MÉTODO PRINCIPAL: analiza un frame
     # ---------------------------------------------------------------------
@@ -83,437 +90,358 @@ class PersonDetector:
         # =========================================================
         # 1️⃣ PREPROCESAMIENTO DE IMAGEN
         # =========================================================
-        # MediaPipe trabaja en RGB, OpenCV usa BGR,
-        # por eso convertimos el espacio de color.
+        # MediaPipe usa RGB, OpenCV usa BGR → conversión necesaria
         h, w = frame.shape[:2]
         rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
-
-        # Ejecuta el modelo de pose
         results = self.pose.process(rgb)
 
-        # Si MediaPipe no detecta un esqueleto, no hay persona
+        # Si no hay esqueleto detectado → no hay persona
         if not results.pose_landmarks:
-            return {"present": False, "landmarks": None}
+            return {"present": False}
 
-        # Acceso rápido a la lista de landmarks
         lm = results.pose_landmarks.landmark
 
         # =========================================================
-        # 2️⃣ ÁNGULOS DE RODILLAS (flexión de piernas)
+        # 2️⃣ VISIBILIDAD GLOBAL (calidad del esqueleto)
         # =========================================================
-        # Se calcula el ángulo geométrico:
-        #   cadera → rodilla → tobillo
-        #
-        # Matemáticamente:
-        #   cos(θ) = (BA · BC) / (|BA| |BC|)
-        #
-        # Físicamente:
-        #   180° = pierna recta
-        #    90° = pierna doblada (sentado)
-        #
-        # Desde cámara cenital es ruidoso, se usa como apoyo.
-        left_knee_angle = self.angle(lm[23], lm[25], lm[27])
-        right_knee_angle = self.angle(lm[24], lm[26], lm[28])
-        knee_angle = (left_knee_angle + right_knee_angle) / 2
-
-        # =========================================================
-        # 3️⃣ LÍNEA CORPORAL (colinealidad)
-        # =========================================================
-        # Se mide si hombro, cadera y pie están alineados.
-        # Si el cuerpo está estirado → ángulo cercano a 180°
-        # Si está doblado → ángulo menor.
-        left_body_line = self.angle(lm[11], lm[23], lm[27])
-        right_body_line = self.angle(lm[12], lm[24], lm[28])
-        body_line_angle = (left_body_line + right_body_line) / 2
-
-        # =========================================================
-        # 4️⃣ VISIBILIDAD GLOBAL
-        # =========================================================
-        # MediaPipe asigna a cada punto una visibilidad ∈ [0,1]
-        # Contamos cuántos landmarks superan el umbral
-        # para saber si la persona es real y completa.
+        # Si muchos puntos son invisibles → no confiable
         vis_count = sum(p.visibility >= self.vis_thresh for p in lm)
         present = vis_count >= self.min_visible_landmarks
+        if not present:
+            return {"present": False}
 
         # =========================================================
-        # 5️⃣ LANDMARKS CLAVE
+        # FUNCIONES AUXILIARES
         # =========================================================
-        # Extraemos las partes estructurales del cuerpo
-        # que se usan para geometría y proyecciones físicas.
-        try:
-            nose = lm[self.LM.NOSE]
-            ls = lm[self.LM.LEFT_SHOULDER]
-            rs = lm[self.LM.RIGHT_SHOULDER]
-            lhip = lm[self.LM.LEFT_HIP]
-            rhip = lm[self.LM.RIGHT_HIP]
-            lk = lm[self.LM.LEFT_KNEE]
-            rk = lm[self.LM.RIGHT_KNEE]
-        except:
-            return {"present": False, "landmarks": None}
+        def L(i):
+            lm_i = lm[i]
+            return lm_i if lm_i.visibility >= self.vis_thresh else None
+        
+        def avg2(a, b):
+            if a and b: return (a + b) / 2
+            if a: return a
+            if b: return b
+            return None
 
+        def avg_xy(a, b):
+            if a and b:
+                return ((a.x + b.x)/2, (a.y + b.y)/2)
+            if a:
+                return (a.x, a.y)
+            if b:
+                return (b.x, b.y)
+            return None
+        
+        def min2(a, b):
+            if a == self.INVALID_ANGLE: return b
+            if b == self.INVALID_ANGLE: return a
+            return min(a, b)
+
+        def max2(a, b):
+            if a == self.INVALID_ANGLE: return b
+            if b == self.INVALID_ANGLE: return a
+            return max(a, b)
+        
         # =========================================================
-        # 6️⃣ GEOMETRÍA DEL CUERPO
+        # 3️⃣ LANDMARKS ESTRUCTURALES
         # =========================================================
+        
+        nose = lm[self.LM.NOSE]
 
-        # Distancia real entre hombros en píxeles:
-        # se usa como filtro de tamaño humano
-        shoulder_px = abs(int((rs.x - ls.x) * w))
+        ls = lm[self.LM.LEFT_SHOULDER]
+        rs = lm[self.LM.RIGHT_SHOULDER]
 
-        # Ancho de caderas en coordenadas normalizadas
-        hip_width = abs(lhip.x - rhip.x)
+        lhip = lm[self.LM.LEFT_HIP]
+        rhip = lm[self.LM.RIGHT_HIP]
 
-        # Promedios verticales de hombros, caderas y rodillas
-        shoulder_y = (ls.y + rs.y) / 2
-        hip_y = (lhip.y + rhip.y) / 2
-        knee_y = (lk.y + rk.y) / 2
+        lk = lm[self.LM.LEFT_KNEE]
+        rk = lm[self.LM.RIGHT_KNEE]
+
+        la = lm[self.LM.LEFT_ANKLE]
+        ra = lm[self.LM.RIGHT_ANKLE]
+
+        le = lm[self.LM.LEFT_ELBOW]
+        re = lm[self.LM.RIGHT_ELBOW]
+
+        lw = lm[self.LM.LEFT_WRIST]
+        rw = lm[self.LM.RIGHT_WRIST]
+        
+
+
+        has_shoulder = (ls is not None) or (rs is not None)
+        has_hip = (lhip is not None) or (rhip is not None)
+
+        #Considera que hay una persona si hay al menos un hombro o una cadera
+        if not (has_shoulder and has_hip):
+            return {"present": False}
+            
+        # =========================================================
+        # Altura y filtros
+        # =========================================================
+        # Centros
+        
+        sc = avg_xy(ls, rs)
+        hc = avg_xy(lhip, rhip)
+
+        if sc is None or hc is None:
+            return {"present": False}
+
+        sx, sy = sc
+        hx, hy = hc
+
+        if nose is None:
+            # Vector torso (cadera → hombros)
+            vx = sx - hx
+            vy = sy - hy
+            norm = (vx*vx + vy*vy)**0.5 + 1e-6
+            vx /= norm
+            vy /= norm
+
+            # Cabeza ≈ 30% del torso desde hombros
+            nx = sx + vx * 0.3
+            ny = sy + vy * 0.3
+
+            nose = type("LM", (), {})()
+            nose.x = nx
+            nose.y = ny
+        
         nose_y = nose.y
+        
+        hip_y = avg2(lhip.y if lhip else None, rhip.y if rhip else None)
+        
+        
+        knee_y = avg2(lk.y if lk else None, rk.y if rk else None)
+        
+        if knee_y is None:
+            return {"present": False}
 
-        # Altura corporal proyectada:
-        # nariz → rodillas
-        # Desde arriba, esta altura cae cuando alguien se acuesta.
-        body_height = abs(knee_y - nose_y)
-
-        # =========================================================
-        # 7️⃣ ASPECT RATIO (ancho / alto)
-        # =========================================================
-        # Se calcula como:
-        #
-        #   ancho del cuerpo (hombros)
-        #   --------------------------
-        #   altura del cuerpo (nariz→rodillas)
-        #
-        # Físicamente:
-        #   - De pie → valor bajo (alto > ancho)
-        #   - Acostado → valor alto (ancho ≈ alto)
-        #
-        aspect_ratio = abs(ls.x - rs.x) / max(body_height, 1e-6)
+        body_height = abs(nose_y - knee_y)
+        if body_height < 0.1:  # filtro mínimo
+            return {"present": False}
 
         # =========================================================
-        # 8️⃣ CENTRO DE MASA
+        # Ancho y proporciones
         # =========================================================
-        # Aproximación del centro del cuerpo
-        # promediando cabeza, hombros y caderas.
-        #
-        # Desde cámara cenital:
-        #   - persona de pie → masa arriba
-        #   - persona acostada → masa baja
-        #
-        center_of_mass_y = (nose_y + shoulder_y + hip_y) / 3
+        if ls and rs:
+            shoulder_width = abs(ls.x - rs.x)
+        else:
+            shoulder_width = 0.3  # promedio relativo
 
-        # =========================================================
-        # 9️⃣ ORIENTACIÓN DEL TORSO
-        # =========================================================
-        # Vector desde caderas → nariz
-        # indica la orientación principal del cuerpo.
-        cx = ((lhip.x + rhip.x) / 2) * w
-        cy = ((lhip.y + rhip.y) / 2) * h
-        nx = nose.x * w
-        ny = nose.y * h
-
-        angle_torso_deg = math.degrees(math.atan2(ny - cy, nx - cx))
-
-        # Distancia angular respecto a la vertical
-        # (más útil en cámaras laterales que cenitales)
-        angle_from_vertical = abs(90 - abs(angle_torso_deg))
-
-        # Diferencia vertical cabeza ↔ caderas
-        # grande = cuerpo vertical
-        # pequeño = cuerpo horizontal
-        head_tilt = hip_y - nose_y
+        if lhip and rhip:
+            hip_width = abs(lhip.x - rhip.x)
+        else:
+            hip_width = shoulder_width * 0.8
+        
+        aspect_ratio = shoulder_width / max(body_height, 1e-6)
 
         # =========================================================
-        # 10️⃣ TORSO SPREAD (MÉTRICA MÁS IMPORTANTE)
+        # Torso spread
         # =========================================================
-        # Proyección real del cuerpo sobre el suelo.
-        # Distancia entre:
-        #   centro de hombros ↔ centro de caderas
-        #
-        # De pie → pequeño
-        # Sentado → medio
-        # Acostado → grande
-        #
-        sx = (ls.x + rs.x) / 2
-        sy = (ls.y + rs.y) / 2
-
-        hx = (lhip.x + rhip.x) / 2
-        hy = (lhip.y + rhip.y) / 2
-
-        # Distancia euclidiana en el plano de la imagen
         torso_spread = math.hypot(sx - hx, sy - hy)
 
         # =========================================================
-        # 11️⃣ SALIDA
+        # Orientación
         # =========================================================
-        # Se devuelven todas las métricas físicas
-        # para clasificación y depuración.
+        cx = hx * w
+        cy = hy * h
+        nx = nose.x * w
+        ny = nose.y * h
+        torso_angle = math.degrees(math.atan2(ny - cy, nx - cx))
+        angle_from_vertical = abs(90 - abs(torso_angle))
+
+        # =========================================================
+        # Cabeza / horizontalidad
+        # =========================================================
+        head_tilt = hip_y - nose_y
+
+        # =========================================================
+        # Rodillas
+        # =========================================================
+        left_knee = self.angle(lhip, lk, la)
+        right_knee = self.angle(rhip, rk, ra)
+            
+        knee_min = min2(left_knee, right_knee)
+        knee_max = max2(left_knee, right_knee)
+        knee_diff = abs(left_knee - right_knee) if left_knee != -1 and right_knee != -1 else 0
+
+        # =========================================================
+        # Colinealidad
+        # =========================================================
+        left_line = self.angle(ls, lhip, lk)
+        right_line = self.angle(rs, rhip, rk)
+        
+        body_line_min = min2(left_line, right_line)
+        body_line_max = max2(left_line, right_line)
+        body_line_diff = abs(left_line - right_line) if left_line != -1 and right_line != -1 else 0
+
+        # =========================================================
+        # Asimetría lateral
+        # =========================================================
+        shoulder_y_diff = abs(ls.y - rs.y) if ls and rs else 0
+        hip_y_diff = abs(lhip.y - rhip.y) if lhip and rhip else 0
+        knee_y_diff = abs(lk.y - rk.y) if lk and rk else 0
+
+        # =========================================================
+        # Brazos y codos
+        # =========================================================
+        left_elbow = self.angle(ls, le, lw)
+        right_elbow = self.angle(rs, re, rw)
+        
+        elbow_min = min2(left_elbow, right_elbow)
+        elbow_max = max2(left_elbow, right_elbow)
+        elbow_diff = abs(left_elbow - right_elbow) if left_elbow != -1 and right_elbow != -1 else 0
+
+        
+        wrist_y_avg = avg2(lw.y if lw else None, rw.y if rw else None)
+        if wrist_y_avg is None:
+            wrist_below_hip = False
+        else:
+            wrist_below_hip = wrist_y_avg > hip_y
+
+        # =========================================================
+        # Cabeza y hombros
+        # =========================================================
+        shoulder_y_avg = avg2(ls.y if ls else None, rs.y if rs else None)
+        shoulder_x_avg = avg2(ls.x if ls else None, rs.x if rs else None)
+
+        if shoulder_y_avg is None:
+            head_below_shoulders = False
+            head_offset_x = 0
+        else:
+            head_below_shoulders = nose.y > shoulder_y_avg
+            head_offset_x = abs(nose.x - shoulder_x_avg)
+        
+        
+        if ls:
+            head_to_left_shoulder = math.hypot(nose.x - ls.x, nose.y - ls.y)
+        else:
+            head_to_left_shoulder = 999
+
+        if rs:
+            head_to_right_shoulder = math.hypot(nose.x - rs.x, nose.y - rs.y)
+        else:
+            head_to_right_shoulder = 999
+            
+        head_shoulder_min = min(head_to_left_shoulder, head_to_right_shoulder)
+        head_shoulder_diff = abs(head_to_left_shoulder - head_to_right_shoulder)
+
+        # =========================================================
+        # SALIDA FINAL — FEATURES PARA IA
+        # =========================================================
         return {
-            "present": present,
+            "present": True,
+            "landmarks": results.pose_landmarks,
             "visibility_count": vis_count,
 
-            "shoulder_px": shoulder_px,
-            "hip_width": hip_width,
+            # Forma global
             "body_height": body_height,
+            "shoulder_width": shoulder_width,
+            "hip_width": hip_width,
             "aspect_ratio": aspect_ratio,
             "torso_spread": torso_spread,
 
-            "angle_torso_deg": angle_torso_deg,
+            # Orientación
+            "torso_angle": torso_angle,
             "angle_from_vertical": angle_from_vertical,
-            "knee_angle": knee_angle,
-            "body_line_angle": body_line_angle,
             "head_tilt": head_tilt,
 
-            "center_of_mass_y": center_of_mass_y,
-            "landmarks": results.pose_landmarks
+            # Piernas
+            "knee_left": left_knee,
+            "knee_right": right_knee,
+            "knee_min": knee_min,
+            "knee_max": knee_max,
+            "knee_diff": knee_diff,
+
+            # Colinealidad
+            "body_line_min": body_line_min,
+            "body_line_max": body_line_max,
+            "body_line_diff": body_line_diff,
+
+            # Asimetría (caídas)
+            "shoulder_y_diff": shoulder_y_diff,
+            "hip_y_diff": hip_y_diff,
+            "knee_y_diff": knee_y_diff,
+
+            # Brazos
+            "elbow_left": left_elbow,
+            "elbow_right": right_elbow,
+            "elbow_min": elbow_min,
+            "elbow_max": elbow_max,
+            "elbow_diff": elbow_diff,
+            "wrist_below_hip": wrist_below_hip,
+
+            # Cabeza
+            "head_below_shoulders": head_below_shoulders,
+            "head_offset_x": head_offset_x,
+            "head_shoulder_min": head_shoulder_min,
+            "head_shoulder_diff": head_shoulder_diff
         }
+        
     
     # ---------------------------------------------------------------------
     # CLASIFICACIÓN DE POSE
     # ---------------------------------------------------------------------
     def clasificar_pose(self, data):
 
-        # ==========================================================
-        # 0️⃣ VALIDACIÓN
-        # ==========================================================
+        # 0️⃣ Validación básica
         if not data or not data.get("present", False):
             return "desconocido"
 
-        # ==========================================================
-        # 1️⃣ VARIABLES GEOMÉTRICAS
-        # ==========================================================
-        h         = data["body_height"]
-        ar        = data["aspect_ratio"]
-        spread    = data["torso_spread"]
-        knee      = data["knee_angle"]
-        body_line = data["body_line_angle"]
-        head_tilt = data["head_tilt"]
-
-        # ==========================================================
-        # 2️⃣ FILTRO DE RUIDO
-        # ==========================================================
-        if h < self.min_body_height:
-            return "desconocido"
-
-        # ==========================================================
-        # 3️⃣ SISTEMA DE VOTACIÓN
-        # ==========================================================
-        score_standing = 0
-        score_sitting  = 0
-        score_lying    = 0
-
-        # ==========================================================
-        # 🔥 ACOSTADO POR ORIENTACIÓN GLOBAL (caída real)
-        # ==========================================================
-        # Si el cuerpo está casi horizontal en la imagen,
-        # significa que la persona está en el suelo,
-        # sin importar tamaño, distancia o perspectiva.
-        if 70 < body_line < 110:
-            score_lying    += 8
-            score_standing -= 5
-            score_sitting  -= 3
-    
-        # ==========================================================
-        # 🔥 4️⃣ ACOSTADO ABSOLUTO (expandido en el suelo)
-        # ==========================================================
-        # Cuerpo muy ancho y separado → acostado transversal
-        if spread > 0.17 and ar > 1.0:
-            score_lying    += 6
-            score_standing -= 4
-            score_sitting  -= 2
-
-        # ==========================================================
-        # 🔥 5️⃣ ACOSTADO LONGITUDINAL (alineado con la cámara)
-        # ==========================================================
-        # Muy largo y recto aunque no sea ancho → acostado
-        if spread > 0.20 and body_line > 140:
-            score_lying    += 5
-            score_standing -= 3
-            score_sitting  -= 2
-
-        # ==========================================================
-        # 🔥 6️⃣ SENTADO FUERTE
-        # ==========================================================
-        if knee < 135:
-            score_sitting  += 4
-            score_standing -= 3
-
-        # ==========================================================
-        # 7️⃣ TORSO_SPREAD (métrica base)
-        # ==========================================================
-        # En tu cámara:
-        #   - spread pequeño → de pie
-        #   - spread medio   → sentado
-        #   - spread grande  → acostado
-        if spread > 0.14:
-            score_lying += 3
-        elif spread > 0.12:
-            score_sitting += 2
-        else:
-            score_standing += 3
-
-        # ==========================================================
-        # 8️⃣ ASPECT_RATIO
-        # ==========================================================
-        # Acostado longitudinal → cuerpo estrecho pero largo
-        if ar < 0.5 and spread > 0.18:
-            score_lying += 3
-        elif ar > 0.5:
-            score_sitting += 2
-        else:
-            score_standing += 2
-
-        # ==========================================================
-        # 9️⃣ BODY_LINE
-        # ==========================================================
-        # Recto + torso largo = acostado
-        # Recto + torso corto = de pie
-        # Doblado = sentado
-        if body_line > 140:
-            if spread > 0.16:
-                score_lying += 3
-            else:
-                score_standing += 2
-        else:
-            score_sitting += 3
-
-        # ==========================================================
-        # 🔟 PIERNAS
-        # ==========================================================
-        if knee < 120:
-            score_sitting += 3
-        elif knee > 160 and spread < 0.15:
-            score_standing += 2
-
-        # ==========================================================
-        # 1️⃣1️⃣ DECISIÓN FINAL
-        # ==========================================================
-        scores = {
-            "de pie": score_standing,
-            "sentado": score_sitting,
-            "acostado": score_lying
-        }
-
-        pose = max(scores, key=scores.get)
-
-        # ==========================================================
-        # 1️⃣2️⃣ CONTROL DE CONFIANZA
-        # ==========================================================
-        if scores[pose] < 3:
-            return "desconocido"
-
-        return pose
-
-
-    def angle(self, a, b, c):
-        # ángulo ABC en grados
-        ba = np.array([a.x - b.x, a.y - b.y])
-        bc = np.array([c.x - b.x, c.y - b.y])
-        cosang = np.dot(ba, bc) / (np.linalg.norm(ba)*np.linalg.norm(bc) + 1e-6)
-        return np.degrees(np.arccos(np.clip(cosang, -1, 1)))
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-    def _es_pose_valida(self, lm):
-        """
-        Validación estructural mínima para cámara cenital (desde el techo).
-
-        Acepta:
-        - Personas de pie
-        - Personas sentadas
-        - Personas caídas o acostadas
-
-        Rechaza:
-        - Reflejos
-        - Sombras
-        - Objetos
-        - Fragmentos de cuerpo
-        """
-
+        # 1️⃣ Construir vector EXACTO al dataset (29 features)
         try:
-            ls = lm[self.LM.LEFT_SHOULDER]
-            rs = lm[self.LM.RIGHT_SHOULDER]
-            lhip = lm[self.LM.LEFT_HIP]
-            rhip = lm[self.LM.RIGHT_HIP]
-        except Exception:
-            return False
+            features = np.array([[ 
+                data["body_height"],
+                data["shoulder_width"],
+                data["hip_width"],
+                data["aspect_ratio"],
+                data["torso_spread"],
+                data["torso_angle"],
+                data["angle_from_vertical"],
+                data["head_tilt"],
+                data["knee_left"],
+                data["knee_right"],
+                data["knee_min"],
+                data["knee_max"],
+                data["knee_diff"],
+                data["body_line_min"],
+                data["body_line_max"],
+                data["body_line_diff"],
+                data["shoulder_y_diff"],
+                data["hip_y_diff"],
+                data["knee_y_diff"],
+                data["elbow_left"],
+                data["elbow_right"],
+                data["elbow_min"],
+                data["elbow_max"],
+                data["elbow_diff"],
+                int(data["wrist_below_hip"]),
+                int(data["head_below_shoulders"]),
+                data["head_offset_x"],
+                data["head_shoulder_min"],
+                data["head_shoulder_diff"]
+            ]], dtype=np.float32)
+        except KeyError:
+            return "desconocido"
 
-        # -------------------------------
-        # 1️⃣ Visibilidad mínima
-        # -------------------------------
-        if (
-            ls.visibility < self.vis_thresh or
-            rs.visibility < self.vis_thresh or
-            lhip.visibility < self.vis_thresh or
-            rhip.visibility < self.vis_thresh
-        ):
-            return False
+        # 2️⃣ Inferencia TensorFlow
+        probs = self.model.predict(features, verbose=0)[0]
 
-        # -------------------------------
-        # 2️⃣ Ancho mínimo de hombros
-        # -------------------------------
-        shoulder_width = abs(ls.x - rs.x)
+        # 3️⃣ Seleccionar clase
+        class_id = int(np.argmax(probs))
+        confidence = float(probs[class_id])
+        label = self.classes[class_id]
 
-        if shoulder_width < self.hombros_min_px:
-            return False
+        # 4️⃣ Umbral
+        if confidence < self.min_confidence:
+            return "desconocido"
 
-        # -------------------------------
-        # 3️⃣ Centro de hombros y caderas
-        # -------------------------------
-        shoulder_y = (ls.y + rs.y) / 2
-        hip_y = (lhip.y + rhip.y) / 2
+        return label
 
-        shoulder_x = (ls.x + rs.x) / 2
-        hip_x = (lhip.x + rhip.x) / 2
 
-        # -------------------------------
-        # 4️⃣ Distancia hombros ↔ cadera
-        # (clave para vista desde arriba)
-        # -------------------------------
-        torso_dist = math.hypot(shoulder_x - hip_x, shoulder_y - hip_y)
-
-        # Si es extremadamente pequeño → ruido o mala detección
-        if torso_dist < 0.02:
-            return False
-
-        # Si es extremadamente grande → dos personas mezcladas o error
-        if torso_dist > 0.6:
-            return False
-
-        # -------------------------------
-        # 5️⃣ Relación hombros ↔ cadera
-        # Forma humana aproximada
-        # -------------------------------
-        # Si hombros y caderas están demasiado separados lateralmente
-        hip_width = abs(lhip.x - rhip.x)
-
-        if hip_width < 0.01:
-            return False
-
-        ratio = shoulder_width / hip_width
-
-        # Valores humanos típicos ~0.6 a ~1.8
-        if ratio < 0.4 or ratio > 2.5:
-            return False
-
-        # --------------------------------
-        # Es una persona válida
-        # (de pie, sentada o caída)
-        # --------------------------------
-        return True
+    def angle(self, a,b,c):
+        if a is None or b is None or c is None:
+            return self.INVALID_ANGLE
+        ba = np.array([a.x-b.x,a.y-b.y])
+        bc = np.array([c.x-b.x,c.y-b.y])
+        cos = np.dot(ba,bc)/(np.linalg.norm(ba)*np.linalg.norm(bc)+1e-6)
+        return np.degrees(np.arccos(np.clip(cos,-1,1)))

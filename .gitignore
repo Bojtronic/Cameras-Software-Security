@@ -1,5 +1,6 @@
 # 🔹 Entorno virtual
 Web_Server_Stream_Video/venv/
+Web_Server_Stream_Video/venv-train/
 .env
 
 # 🔹 PyInstaller

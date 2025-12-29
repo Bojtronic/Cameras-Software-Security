@@ -17,6 +17,7 @@ hiddenimports += collect_submodules("zeep.wsse")
 hiddenimports += collect_submodules("zeep.xsd")
 
 datas = [
+    (os.path.join(project_dir, "pose_model.h5"), "."),
     (os.path.join(project_dir, "app"), "app"),
     (os.path.join(project_dir, "core"), "core"),
     (os.path.join(project_dir, "services"), "services"),

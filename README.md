@@ -1,18 +1,45 @@
-# 🧠 **SISTEMA DE VISIÓN ARTIFICIAL Y CONTROL**
+# 🧠 Sistema de Visión Artificial y Control
 
-Sistema de visión artificial y control desarrollado con **FastAPI, OpenCV, MediaPipe y cámaras ONVIF**.
+Sistema de visión artificial y control desarrollado con **FastAPI, OpenCV, MediaPipe y cámaras ONVIF**, con clasificación de poses mediante **IA (TensorFlow)**.
 
----
-
-# 📦 **REQUISITOS PREVIOS**
-
-- ✅ **Python 3.10 o superior**
-- ✅ **Git**
-- ✅ **Windows 10/11** (requerido para generar el `.exe`)
+Este documento describe paso a paso cómo instalar, entrenar y ejecutar el sistema en una nueva computadora.
 
 ---
 
-# 📥 **1️⃣ CLONAR EL REPOSITORIO**
+## 📦 Requisitos
+
+### Python
+- **Python 3.10 o superior**
+
+Verificar instalación:
+```bash
+python --version
+```
+
+Descarga: https://www.python.org/downloads/
+
+### Git (opcional)
+Solo requerido si vas a clonar o modificar el repositorio.
+
+Verificar:
+```bash
+git --version
+```
+
+Descarga: https://git-scm.com/install/windows 
+
+### Sistema Operativo
+- **Windows 10 / 11** 
+Requerido para generar `.exe`
+
+### Visual Studio Code (opcional)
+Editor recomendado para desarrollo.
+
+Descarga: https://code.visualstudio.com/
+
+---
+
+## 📥 1. Clonar repositorio
 
 ```bash
 git clone https://github.com/Bojtronic/Cameras-Software-Security.git
@@ -21,99 +48,168 @@ cd Cameras-Software-Security
 
 ---
 
-# 🧪 **2️⃣ CREAR Y ACTIVAR EL ENTORNO VIRTUAL**
+## 🧪 2. Crear entornos virtuales
 
-Crear el entorno virtual:
+Se utilizan **dos entornos**:
+
+| Entorno | Uso |
+|-------|-----|
+| `venv-train` | Entrenamiento de IA y generación del modelo |
+| `venv` | Ejecución del sistema y generación del ejecutable |
+
+Ir a la carpeta del proyecto:
 
 ```bash
+cd Cameras-Software-Security/Web_Server_Stream_Video
+```
+
+Crear entornos:
+
+```bash
+python -m venv venv-train
 python -m venv venv
 ```
 
-Activarlo:
+---
+
+## 📚 3. Instalar dependencias
+
+### 🔹 Entrenamiento de IA
+
+```bash
+venv-train\Scripts\activate
+pip install -r requirements-train.txt
+deactivate
+```
+
+### 🔹 Runtime y servidor
+
+```bash
+venv\Scripts\activate
+pip install -r requirements.txt
+pip install -r requirements-dev.txt
+deactivate
+```
+
+---
+
+## 🧠 4. Flujo del modelo IA
+
+### 4.1 Crear Dataset
+
+Activar entorno de entrenamiento:
+
+```bash
+venv-train\Scripts\activate
+```
+
+Ejecutar:
+
+```bash
+python -m "modelo pose.dataset_builder"
+```
+
+Esto genera el archivo:
+
+pose_dataset.csv
+
+
+---
+
+### 4.2 Entrenar modelo
+
+```bash
+python -m "modelo pose.create_model"
+```
+
+Se generará el modelo:
+
+pose_model.h5
+
+
+---
+
+### 4.3 Reentrenar modelo (opcional)
+
+```bash
+python -m "modelo pose.retrain_model"
+```
+
+Esto mejora el modelo usando nuevos datos.
+
+Recordar siempre desactivar este entorno virtual despues de crear el modelo pues no se debe mezclar con el entorno virtual de ejecución y construcción 
+
+```bash
+deactivate
+```
+
+---
+
+## ▶️ 5. Ejecutar el sistema
+
+```bash
+venv\Scripts\activate
+python run_ui.py
+```
+
+Luego abre en el navegador:
+```
+http://localhost:8000
+```
+
+---
+
+## 🏗 6. Generar ejecutable (.exe)
+
+Ir a la carpeta que contiene los archivos fuente
+
+```bash
+cd Cameras-Software-Security/Web_Server_Stream_Video
+```
+
+Se debe acitivar el respectivo entorno virtual
 
 ```bash
 venv\Scripts\activate
 ```
 
----
-
-# 📚 **3️⃣ INSTALAR DEPENDENCIAS**
-
-Instalar librerías de ejecución (runtime):
-
-```bash
-pip install -r requirements.txt
-```
-
-Instalar herramientas de desarrollo y build:
-
-```bash
-pip install -r requirements-dev.txt
-```
-
----
-
-# ▶️ **4️⃣ EJECUTAR EN MODO DESARROLLO**
-
-Ejecutar la aplicación principal:
-
-```bash
-python run_ui.py
-```
-
----
-
-# 🧪 **5️⃣ DESARROLLO**
-
-Durante el desarrollo puedes:
-
-- Editar el código
-- Ejecutar el servidor o el script principal
-- Usar `pipreqs`, `pip-check-reqs` y `pip-tools` para validar dependencias
-
-Verificar imports faltantes:
-
-```bash
-pip-missing-reqs .
-```
-
----
-
-# 🏗 **6️⃣ GENERAR EL EJECUTABLE (BUILD)**
-
-Cuando el desarrollo esté terminado:
+Ejecutar el comando para generar el .exe
 
 ```bash
 pyinstaller run.spec
 ```
 
-El ejecutable final se generará en:
-
-```text
+El ejecutable se genera en:
+```
 /dist/
 ```
 
 ---
 
-# 📦 **7️⃣ DISTRIBUCIÓN**
+## 📦 7. Distribución
 
-El contenido de la carpeta:
-
-```text
+La carpeta:
+```
 dist/
 ```
+Contiene:
+- El `.exe`
+- Todas las dependencias necesarias
 
-- Es el que se debe distribuir o instalar en las máquinas destino  
-- No es necesario que esas máquinas tengan Python instalado  
+No requiere Python instalado en la máquina destino.
+
+---
+
+## 🛡 Reglas importantes
+
+- ❌ No mezclar entornos
+- `requirements-train.txt` → Entrenamiento IA
+- `requirements.txt` → Desarrollo y Producción
+- `requirements-dev.txt` → Compilación
+
 
 ---
 
-# 🛡 **NOTAS IMPORTANTES**
+## 📞 Soporte
 
-- Nunca ejecutes **PyInstaller** fuera del entorno virtual
-- No uses `pip freeze > requirements.txt` en este proyecto
-- Las dependencias de runtime y desarrollo están separadas por diseño:
-  - `requirements.txt` → lo que el ejecutable necesita  
-  - `requirements-dev.txt` → herramientas para construirlo  
-
----
+Correo **bojtronic@gmail.com**  
