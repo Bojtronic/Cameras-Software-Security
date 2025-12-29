@@ -110,7 +110,9 @@ python -m "modelo pose.dataset_builder"
 ```
 
 Esto abre una ventana con el video en streaming de la camara en la que se usará el sistema
+
 Previamente se debe haber configurado el enlace rtsp hacia la camara
+
 Esta interfaz permite: 
 
 - Congelar la imagen con la pose que se desea agregar al dataset presionando el boton `Freeze`
