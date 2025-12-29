@@ -173,6 +173,18 @@ Luego abre en el navegador:
 http://localhost:8000
 ```
 
+Esta interfaz permite: 
+
+- `Escanear la red local` para encontrar camaras mediante el protocolo `ONVIF`
+- Una vez que se encuentran las camaras o grabadores disponibles se puede `seleccionar una de las opciones`
+- Se ingresa el `usuario y contraseña` para la camara o grabador para obtener el streaming mediante el protocolo `RTSP`
+- Posteriormente se puede `eligir uno de los canales del grabador o streams de la camara`
+- Una vez seleccionado se procede a `Probar` o directamente `Activar` para poder ver `el video y la detección de poses`
+- Se pueden enviar alertas mediante correo y Whatsapp, de momento está como botones porque el proyecto aun está en etapa de desarrollo, el objetivo es enviar alertas de manera automatica ante una caída.
+
+
+![Interfaz para selección de camara y detección de poses](image-1.png)
+
 ---
 
 ## 🏗 6. Generar ejecutable (.exe)
