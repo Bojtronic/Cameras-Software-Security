@@ -109,6 +109,20 @@ Ejecutar:
 python -m "modelo pose.dataset_builder"
 ```
 
+Esto abre una ventana con el video en streaming de la camara en la que se usará el sistema
+Previamente se debe haber configurado el enlace rtsp hacia la camara
+Esta interfaz permite: 
+
+- Congelar la imagen con la pose que se desea agregar al dataset presionando el boton `Freeze`
+- Etiquetar la imagen con los botones `Standing` (Azul), `Sitting` (Verde), `Lying` (Naranja) y `Fall` (Rojo)
+- Si ha habido un error en la imagen seleccionada se puede descartar con el boton `Discard`
+- Cuado se tiene la imagen adecuada correctamente etiquetada, se procede a guardar los datos de la pose presionando el boton `Save`
+- Para detener la generación de datos al dataset se presiona el boton `Exit`
+- Si se vuelve a ejecutar este script, los nuevos datos se continuan agregando al archivo csv para hacer mas grande el set de datos
+
+
+![interfaz para generación del dataset](image.png)
+
 Esto genera el archivo:
 
 pose_dataset.csv
