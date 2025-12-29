@@ -1,9 +1,11 @@
 import os
+os.environ["TF_CPP_MIN_LOG_LEVEL"] = "3"   # 0=todo, 1=info, 2=warning, 3=error
 
-# ==================================================
-# Silenciar logs de TensorFlow / MediaPipe
-# ==================================================
-os.environ["TF_CPP_MIN_LOG_LEVEL"] = "2"
+os.environ["GLOG_minloglevel"] = "3"
+os.environ["TF_ENABLE_ONEDNN_OPTS"] = "0"
+
+import warnings
+warnings.filterwarnings("ignore")
 
 import webbrowser
 import threading

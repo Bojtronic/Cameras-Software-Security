@@ -109,10 +109,10 @@ Ejecutar:
 python -m "modelo pose.dataset_builder"
 ```
 
-Esto genera:
-```
+Esto genera el archivo:
+
 pose_dataset.csv
-```
+
 
 ---
 
@@ -122,10 +122,10 @@ pose_dataset.csv
 python -m "modelo pose.create_model"
 ```
 
-Se generará:
-```
+Se generará el modelo:
+
 pose_model.h5
-```
+
 
 ---
 
@@ -160,6 +160,20 @@ http://localhost:8000
 ---
 
 ## 🏗 6. Generar ejecutable (.exe)
+
+Ir a la carpeta que contiene los archivos fuente
+
+```bash
+cd Cameras-Software-Security/Web_Server_Stream_Video
+```
+
+Se debe acitivar el respectivo entorno virtual
+
+```bash
+venv\Scripts\activate
+```
+
+Ejecutar el comando para generar el .exe
 
 ```bash
 pyinstaller run.spec

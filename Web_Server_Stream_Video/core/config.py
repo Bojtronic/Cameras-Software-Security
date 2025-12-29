@@ -83,7 +83,7 @@ SMOOTH_SEGMENTATION = False
 # 0.4–0.5 → ideal
 # 0.6+ → muy estricto
 #
-VIS_THRESH = 0.3
+VIS_THRESH = 0.4
 
 
 # ------------------------------------------------------------
